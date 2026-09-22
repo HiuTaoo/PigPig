@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using _Script;
 
@@ -7,7 +8,6 @@ public class GridManager : MonoBehaviour
     public int Size { get; private set; } = 5;
 
     [Header("Tham chiếu đối tượng")]
-    [SerializeField] private GameObject gridCubePrefab;
     [SerializeField] private GameObject gridBase;
 
     [Header("Bảng màu hệ thống")]
@@ -18,19 +18,16 @@ public class GridManager : MonoBehaviour
     [SerializeField] private float tileFillRatio = 0.95f;
     [SerializeField] private float tileThickness = 5f;
 
-    // Lưu trữ ma trận các Node
+    [Header("Cấu hình Lợn")]
+    [Tooltip("Tỉ lệ kích thước của con lợn so với độ rộng ô (0.7 = bằng 70% bề rộng ô cube)")]
+    [Range(0.2f, 1f)]
+    [SerializeField] private float pigScaleRatio = 0.7f;
+
+    [Tooltip("Khoảng cách đẩy lùi lên phía trên cạnh trên cùng (tính theo số ô, ví dụ 1.0 = cách đúng 1 ô)")]
+    [SerializeField] private float pigTopMargin = 1.0f;
+
     private Node[,] gridNodes;
-
-    private void Start()
-    {
-        InitializeGrid();
-    }
-
-    public void SetSize(int newSize)
-    {
-        Size = Mathf.Max(1, newSize);
-        InitializeGrid();
-    }
+    private List<GameObject> spawnedPigs = new List<GameObject>();
 
     public void InitializeGrid()
     {
@@ -57,12 +54,10 @@ public class GridManager : MonoBehaviour
                 float posZ = baseTransform.position.z + (r * cellSize) - startOffset;
                 Vector3 worldPos = new Vector3(posX, spawnY, posZ);
 
-                // 1. Sinh Cube
-                GameObject cube = Instantiate(gridCubePrefab, worldPos, Quaternion.identity, baseTransform);
+                GameObject cube = Instantiate(PrefabConfig.Instance.cube, worldPos, Quaternion.identity, baseTransform);
                 cube.name = $"Cube_{r}_{c}";
                 cube.transform.localScale = localScale;
 
-                // 2. Lấy component Node và gán thông tin
                 Node node = cube.GetComponent<Node>();
                 if (node == null)
                 {
@@ -70,19 +65,103 @@ public class GridManager : MonoBehaviour
                 }
 
                 int regionId = (r + c) % 5; 
-
                 node.Init(r, c, regionId, globalColorPalette);
 
                 gridNodes[r, c] = node;
             }
         }
+
+        // Truyền chính xác cubeWidth vào để lợn ăn đúng 70% bề rộng ô cờ
+        SpawnPigsAboveGrid(cellSize, cubeWidth, spawnY);
+    }
+
+    /// <summary>
+    /// Sinh các con lợn xếp thành 1 hàng ngang phía trên cạnh trên của bàn cờ
+    /// </summary>
+    private void SpawnPigsAboveGrid(float cellSize, float cubeWidth, float spawnY)
+    {
+        ClearPigs();
+
+        if (PrefabConfig.Instance == null || PrefabConfig.Instance.pig == null || PrefabConfig.Instance.pig.Length == 0)
+        {
+            Debug.LogWarning("[GridManager] PrefabConfig chưa có prefab pig!", this);
+            return;
+        }
+
+        int topRowIndex = Size - 1;
+        float targetPigWidth = cubeWidth * pigScaleRatio; 
+
+        for (int c = 0; c < Size; c++)
+        {
+            Node referenceNode = gridNodes[topRowIndex, c];
+            if (referenceNode == null) continue;
+
+            GameObject pigPrefab = PrefabConfig.Instance.pig[c % PrefabConfig.Instance.pig.Length];
+            if (pigPrefab == null) continue;
+
+            Vector3 refPos = referenceNode.transform.position;
+            Vector3 pigPos = new Vector3(
+                refPos.x,
+                spawnY + 0.25f,
+                refPos.z + (cellSize * pigTopMargin)
+            );
+
+            // Sinh con lợn làm con của gridBase để ăn theo không gian tọa độ thế giới chuẩn
+            GameObject newPig = Instantiate(pigPrefab, pigPos, Quaternion.identity, transform);
+            newPig.name = $"Pig_Col_{c}";
+            newPig.transform.rotation = Quaternion.Euler(0, 180, 0);
+
+            // Tự động đo kích thước mesh thực tế của prefab và scale đều 3 trục về đúng targetPigWidth
+            FitPigUniformScale(newPig, targetPigWidth);
+
+            spawnedPigs.Add(newPig);
+        }
+    }
+
+    /// <summary>
+    /// Đo đạc mesh của prefab lợn và scale đều 3 trục (X, Y, Z) để đạt đúng kích thước targetWidth mà không méo dáng
+    /// </summary>
+    private void FitPigUniformScale(GameObject pigObj, float targetWidth)
+    {
+        Renderer[] rends = pigObj.GetComponentsInChildren<Renderer>();
+        if (rends.Length > 0)
+        {
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++)
+            {
+                b.Encapsulate(rends[i].bounds);
+            }
+
+            float currentWidth = Mathf.Max(b.size.x, b.size.z);
+            if (currentWidth > 0.0001f)
+            {
+                float factor = targetWidth / currentWidth;
+                pigObj.transform.localScale *= factor;
+            }
+        }
+        else
+        {
+            pigObj.transform.localScale = Vector3.one * targetWidth;
+        }
+    }
+
+    private void ClearPigs()
+    {
+        for (int i = spawnedPigs.Count - 1; i >= 0; i--)
+        {
+            if (spawnedPigs[i] != null)
+            {
+                Destroy(spawnedPigs[i]);
+            }
+        }
+        spawnedPigs.Clear();
     }
 
     private bool ValidateReferences()
     {
-        if (gridCubePrefab == null)
+        if (PrefabConfig.Instance == null || PrefabConfig.Instance.cube == null)
         {
-            Debug.LogError("[GridManager] gridCubePrefab chưa được gán!", this);
+            Debug.LogError("[GridManager] PrefabConfig.Instance.cube chưa được gán!", this);
             return false;
         }
 
@@ -121,6 +200,8 @@ public class GridManager : MonoBehaviour
 
     private void ClearGrid()
     {
+        ClearPigs();
+
         if (gridBase == null) return;
 
         Transform baseTransform = gridBase.transform;
@@ -138,5 +219,11 @@ public class GridManager : MonoBehaviour
         }
 
         return gridNodes[row, col];
+    }
+    
+    public void SetSize(int newSize)
+    {
+        Size = Mathf.Max(1, newSize);
+        InitializeGrid();
     }
 }

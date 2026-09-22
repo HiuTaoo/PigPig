@@ -14,9 +14,9 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float pitchAngle = 45f;
 
     [Header("Căn chỉnh hiển thị")]
-    [Tooltip("Tỉ lệ bề ngang cạnh dưới so với màn hình: 0.9 = cạnh dưới rộng đúng 90% màn hình, 1.0 = chạm sát 2 mép")]
-    [Range(0.6f, 1f)]
-    [SerializeField] private float horizontalFillRatio = 0.95f;
+    [Tooltip("Tỉ lệ bao phủ tối đa của bàn cờ so với màn hình (áp dụng cho cả chiều ngang và chiều dọc): 0.9 = chiếm 90%")]
+    [Range(0.5f, 1f)]
+    [SerializeField] private float screenFillRatio = 0.9f;
 
     [Tooltip("Dịch cả bàn cờ lên/xuống (-0.1: hạ xuống chút nhường chỗ cho UI, 0: chính giữa)")]
     [Range(-0.5f, 0.5f)]
@@ -52,49 +52,55 @@ public class CameraController : MonoBehaviour
         Bounds bounds = CalculateTotalBounds(targetGrid);
         Vector3 center = bounds.center;
 
-        // Khóa góc quay chỉ xoay trục X (không xoay Y để cạnh song song mép màn hình)
+        // Khóa góc quay chỉ xoay trục X (nghiêng nhìn xuống, không xoay Y/Z)
         transform.rotation = Quaternion.Euler(pitchAngle, 0f, 0f);
 
-        // 2. Tính góc mở Camera (Vertical & Horizontal FOV)
+        // 2. Góc mở Camera (Vertical & Horizontal FOV)
         float radVFov = cam.fieldOfView * Mathf.Deg2Rad;
         float currentAspect = (float)Screen.width / Screen.height;
         float radHFov = 2f * Mathf.Atan(Mathf.Tan(radVFov * 0.5f) * currentAspect);
 
-        // 3. Tọa độ của cạnh trước (gần camera nhất)
-        float halfWidth = bounds.size.x * 0.5f;
+        // 3. Tọa độ các điểm mốc trên bàn cờ
         float halfDepth = bounds.size.z * 0.5f;
         float topY = bounds.max.y;
 
-        // Khoảng cách theo trục quang học (depth) để cạnh trước vừa khít horizontalFillRatio
-        float targetVisibleWidthAtFront = (bounds.size.x) / horizontalFillRatio;
-        float requiredDepthToFront = (targetVisibleWidthAtFront * 0.5f) / Mathf.Tan(radHFov * 0.5f);
+        Vector3 frontEdgeMid = new Vector3(center.x, topY, center.z - halfDepth);
+        Vector3 backEdgeMid = new Vector3(center.x, topY, center.z + halfDepth);
 
-        // Vector từ tâm bàn cờ đến điểm giữa của cạnh trước
-        Vector3 frontEdgeMidPoint = new Vector3(center.x, topY, center.z - halfDepth);
+        // --- TÍNH KHOẢNG CÁCH FIT THEO CHIỀU NGANG ---
+        // Cạnh trước gần nhất có độ rộng bounds.size.x
+        float targetVisibleWidthAtFront = bounds.size.x / screenFillRatio;
+        float depthForWidth = (targetVisibleWidthAtFront * 0.5f) / Mathf.Tan(radHFov * 0.5f);
 
-        // Đặt camera lùi lại đúng khoảng cách requiredDepthToFront so với cạnh trước
-        Vector3 camPos = frontEdgeMidPoint - transform.forward * requiredDepthToFront;
+        // --- TÍNH KHOẢNG CÁCH FIT THEO CHIỀU DỌC (KHI XOAY NGANG) ---
+        // Độ chênh lệch giữa cạnh trước và sau trong không gian camera (chiếu theo hướng Up và Forward)
+        Vector3 edgeDelta = backEdgeMid - frontEdgeMid;
+        float deltaForward = Vector3.Dot(edgeDelta, transform.forward);
+        float deltaUp = Vector3.Dot(edgeDelta, transform.up);
 
-        // 4. Cân bằng tâm theo chiều dọc để bàn cờ không bị tụt xuống đáy
-        // Điểm giữa cạnh sau
-        Vector3 backEdgeMidPoint = new Vector3(center.x, topY, center.z + halfDepth);
-        
-        // Chiếu lên trục UP của Camera để tìm tâm biểu kiến
-        float frontYProj = Vector3.Dot(frontEdgeMidPoint - camPos, transform.up) / requiredDepthToFront;
-        float backDepth = Vector3.Dot(backEdgeMidPoint - camPos, transform.forward);
-        float backYProj = Vector3.Dot(backEdgeMidPoint - camPos, transform.up) / backDepth;
+        // Tính khoảng cách cần lùi để góc mở dọc chứa trọn độ dài chiếu của bàn cờ
+        float tanHalfVFov = Mathf.Tan(radVFov * 0.5f) * screenFillRatio;
+        float depthForHeight = (deltaUp + deltaForward * tanHalfVFov) / (2f * tanHalfVFov);
 
-        // Độ lệch tâm theo trục dọc
+        // Chọn khoảng cách an toàn lớn nhất để KHÔNG BAO GIỜ bị tràn cả chiều ngang lẫn chiều dọc
+        float chosenDepthToFront = Mathf.Max(depthForWidth, depthForHeight);
+
+        // 4. Đặt vị trí Camera lùi lại từ cạnh trước
+        Vector3 camPos = frontEdgeMid - transform.forward * chosenDepthToFront;
+
+        // 5. Cân bằng tâm theo chiều dọc để bàn cờ luôn nằm ngay chính giữa màn hình
+        float frontYProj = Vector3.Dot(frontEdgeMid - camPos, transform.up) / chosenDepthToFront;
+        float backDepth = Vector3.Dot(backEdgeMid - camPos, transform.forward);
+        float backYProj = Vector3.Dot(backEdgeMid - camPos, transform.up) / backDepth;
+
         float midYProj = (frontYProj + backYProj) * 0.5f;
-        float verticalShift = midYProj * requiredDepthToFront;
-
-        // Dịch camera để tâm hình học của bàn cờ rơi đúng vào tâm màn hình
+        float verticalShift = midYProj * chosenDepthToFront;
         camPos += transform.up * verticalShift;
 
-        // Áp dụng thêm tùy chỉnh của người dùng (nếu muốn)
+        // Áp dụng offset dịch chuyển dọc (nếu có)
         if (!Mathf.Approximately(verticalOffset, 0f))
         {
-            camPos -= transform.up * (verticalOffset * requiredDepthToFront * Mathf.Tan(radVFov * 0.5f));
+            camPos -= transform.up * (verticalOffset * chosenDepthToFront * Mathf.Tan(radVFov * 0.5f));
         }
 
         transform.position = camPos;
@@ -105,7 +111,7 @@ public class CameraController : MonoBehaviour
         Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
         if (renderers.Length == 0)
         {
-            return new Bounds(root.position, Vector3.one * 100f);
+            return new Bounds(root.position, root.lossyScale);
         }
 
         Bounds b = renderers[0].bounds;

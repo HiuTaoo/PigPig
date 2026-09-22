@@ -29,7 +29,6 @@ public class Node : MonoBehaviour
             this.colorRegionID = regionId;
             this.colorPalette = palette;
 
-            // Tự đọc ID và cập nhật màu cho chính ô này
             ApplyColorByRegionId();
         }
 
@@ -58,7 +57,6 @@ public class Node : MonoBehaviour
             cubeRenderer.SetPropertyBlock(propBlock);
         }
 
-        // Chuyển đổi trạng thái (Trống -> Mèo -> X -> Trống)
         public void CycleNextState()
         {
             switch (nodeStatus)
