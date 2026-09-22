@@ -1,4 +1,5 @@
 ﻿using _Script;
+using _Script.Events;
 using UnityEngine;
 
 public class Node : MonoBehaviour
@@ -30,6 +31,11 @@ public class Node : MonoBehaviour
             this.colorPalette = palette;
 
             ApplyColorByRegionId();
+        }
+        
+        private void OnMouseDown()
+        {
+            EventManager.Raise(new CellClickedEvent(this));
         }
 
         /// <summary>

@@ -615,7 +615,7 @@ GameObject:
   - component: {fileID: 3979488160996667281}
   - component: {fileID: -3782221787662339505}
   - component: {fileID: -5446163269647692321}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Pig 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -690,7 +690,7 @@ Rigidbody:
   m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 0
-  m_Constraints: 0
+  m_Constraints: 8
   m_CollisionDetection: 0
 --- !u!65 &-3782221787662339505
 BoxCollider:
@@ -725,6 +725,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b28c61a992b2478a869130c66a8177e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  moveSpeed: 2
+  turnSpeed: 10
+  gridTag: grid
 --- !u!1 &5650760867242857245
 GameObject:
   m_ObjectHideFlags: 0

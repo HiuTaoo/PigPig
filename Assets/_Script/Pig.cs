@@ -1,55 +1,116 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace _Script
 {
-    public class Pig: MonoBehaviour
+    [RequireComponent(typeof(Animator))]
+    public class Pig : MonoBehaviour
     {
-        private BoxCollider boxCollider;
+        [Header("Thông số chạy")]
+        [Tooltip("Tốc độ chạy (chỉnh khoảng 3 - 6 cho vừa khớp với nhịp đạp chân)")]
+        [SerializeField] private float moveSpeed = 4f;
+
+        [Tooltip("Tốc độ quay đầu khi rẽ góc")]
+        [SerializeField] private float turnSpeed = 15f;
+
+        public bool IsPatrolling { get; private set; } = false;
+
+        private Animator anim;
+        private Coroutine patrolCoroutine;
+        private List<Vector3> cachedLoopPath;
 
         private void Awake()
         {
-            FitBoxCollider(gameObject);
+            anim = GetComponent<Animator>();
+            HelpMethod.FitBoxCollider(gameObject);
         }
 
         /// <summary>
-        /// Tự động thêm hoặc chỉnh BoxCollider ôm khít mô hình con lợn
+        /// Nạp danh sách đường đi nhưng chưa chạy ngay, đợi va chạm với Grid
         /// </summary>
-        public static BoxCollider FitBoxCollider(GameObject target)
+        public void PreparePatrolPath(List<Vector3> loopPath)
         {
-            // Lấy hoặc thêm BoxCollider vào đối tượng gốc
-            BoxCollider boxCollider = target.GetComponent<BoxCollider>();
-            if (boxCollider == null)
+            cachedLoopPath = loopPath;
+        }
+
+        /// <summary>
+        /// Bắt đầu chạy tuần tra quanh viền
+        /// </summary>
+        public void StartPatrolling(List<Vector3> loopPath = null)
+        {
+            if (loopPath != null) cachedLoopPath = loopPath;
+            if (cachedLoopPath == null || cachedLoopPath.Count == 0) return;
+
+            StopPatrolling();
+            patrolCoroutine = StartCoroutine(PatrolRoutine(cachedLoopPath));
+        }
+
+        public void StopPatrolling(Action onComplete = null)
+        {
+            IsPatrolling = false;
+
+            if (patrolCoroutine != null)
             {
-                boxCollider = target.AddComponent<BoxCollider>();
+                StopCoroutine(patrolCoroutine);
+                patrolCoroutine = null;
             }
 
-            // Lấy tất cả Renderer (MeshRenderer hoặc SkinnedMeshRenderer) của đối tượng và các con
-            Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0) return boxCollider;
-
-            // Tính Bounds tổng trong không gian thế giới (World Space)
-            Bounds totalBounds = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++)
+            if (anim != null)
             {
-                totalBounds.Encapsulate(renderers[i].bounds);
+                anim.SetBool("IsRunning", false);
             }
 
-            // Chuyển đổi Bounds từ World Space sang Local Space của target
-            // 1. Tâm (Center) trong Local Space
-            boxCollider.center = target.transform.InverseTransformPoint(totalBounds.center);
+            onComplete?.Invoke();
+        }
+        
 
-            // 2. Kích thước (Size) trong Local Space (loại bỏ ảnh hưởng bởi lossyScale của cha)
-            Vector3 worldSize = totalBounds.size;
-            Vector3 lossyScale = target.transform.lossyScale;
+        private IEnumerator PatrolRoutine(List<Vector3> path)
+        {
+            IsPatrolling = true;
+            anim.SetBool("IsRunning", true);
 
-            boxCollider.size = new Vector3(
-                lossyScale.x != 0 ? worldSize.x / lossyScale.x : 0,
-                lossyScale.y != 0 ? worldSize.y / lossyScale.y : 0,
-                lossyScale.z != 0 ? worldSize.z / lossyScale.z : 0
-            );
+            // Tìm điểm mốc gần nhất
+            int currentIndex = 0;
+            float minDistance = float.MaxValue;
+            for (int i = 0; i < path.Count; i++)
+            {
+                float d = Vector3.Distance(transform.position, path[i]);
+                if (d < minDistance)
+                {
+                    minDistance = d;
+                    currentIndex = i;
+                }
+            }
 
-            return boxCollider;
+            while (IsPatrolling)
+            {
+                Vector3 targetPoint = path[currentIndex];
+                targetPoint.y = transform.position.y; 
+
+                // 1. Xoay đầu về hướng mục tiêu
+                Vector3 moveDir = (targetPoint - transform.position);
+                moveDir.y = 0;
+                if (moveDir != Vector3.zero)
+                {
+                    Quaternion targetRot = Quaternion.LookRotation(moveDir);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, turnSpeed * Time.deltaTime);
+                }
+
+                // 2. Tịnh tiến về phía trước
+                transform.position = Vector3.MoveTowards(transform.position, targetPoint, moveSpeed * Time.deltaTime);
+
+                // 3. Đã tới mốc ô viền -> chuyển sang mốc tiếp theo
+                if (Vector3.Distance(transform.position, targetPoint) < 0.05f)
+                {
+                    currentIndex = (currentIndex + 1) % path.Count;
+                }
+
+                yield return null;
+            }
+
+            patrolCoroutine = null;
         }
     }
 }

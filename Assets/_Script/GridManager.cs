@@ -5,6 +5,7 @@ using _Script;
 public class GridManager : MonoBehaviour
 {
     [field: SerializeField] 
+    [Tooltip("Kích thước bàn cờ chơi chính (ví dụ: 5 -> vùng 5x5)")]
     public int Size { get; private set; } = 5;
 
     [Header("Tham chiếu đối tượng")]
@@ -19,14 +20,12 @@ public class GridManager : MonoBehaviour
     [SerializeField] private float tileThickness = 5f;
 
     [Header("Cấu hình Lợn")]
-    [Tooltip("Tỉ lệ kích thước của con lợn so với độ rộng ô (0.7 = bằng 70% bề rộng ô cube)")]
+    [Tooltip("Tỉ lệ kích thước con lợn so với ô cube (0.7 = 70% bề rộng ô)")]
     [Range(0.2f, 1f)]
     [SerializeField] private float pigScaleRatio = 0.7f;
 
-    [Tooltip("Khoảng cách đẩy lùi lên phía trên cạnh trên cùng (tính theo số ô, ví dụ 1.0 = cách đúng 1 ô)")]
-    [SerializeField] private float pigTopMargin = 1.0f;
-
     private Node[,] gridNodes;
+    
     private List<GameObject> spawnedPigs = new List<GameObject>();
 
     public void InitializeGrid()
@@ -34,6 +33,7 @@ public class GridManager : MonoBehaviour
         if (!ValidateReferences()) return;
 
         ClearGrid();
+
         gridNodes = new Node[Size, Size];
 
         Transform baseTransform = gridBase.transform;
@@ -46,39 +46,62 @@ public class GridManager : MonoBehaviour
 
         Vector3 localScale = CalculateLocalScale(baseTransform, cubeWidth, tileThickness);
 
-        for (int r = 0; r < Size; r++)
+        List<Vector3> borderSlotPositions = new List<Vector3>();
+
+        for (int r = -1; r <= Size; r++)
         {
-            for (int c = 0; c < Size; c++)
+            for (int c = -1; c <= Size; c++)
             {
                 float posX = baseTransform.position.x + (c * cellSize) - startOffset;
                 float posZ = baseTransform.position.z + (r * cellSize) - startOffset;
-                Vector3 worldPos = new Vector3(posX, spawnY, posZ);
+                Vector3 slotPos = new Vector3(posX, spawnY, posZ);
 
-                GameObject cube = Instantiate(PrefabConfig.Instance.cube, worldPos, Quaternion.identity, baseTransform);
-                cube.name = $"Cube_{r}_{c}";
-                cube.transform.localScale = localScale;
+                bool isVirtualBorder = (r == -1 || r == Size || c == -1 || c == Size);
 
-                Node node = cube.GetComponent<Node>();
-                if (node == null)
+                if (isVirtualBorder)
                 {
-                    node = cube.AddComponent<Node>();
+                    borderSlotPositions.Add(slotPos);
                 }
+                else
+                {
+                    GameObject cube = Instantiate(PrefabConfig.Instance.cube, slotPos, Quaternion.identity, baseTransform);
+                    cube.name = $"Cube_{r}_{c}";
+                    cube.transform.localScale = localScale;
 
-                int regionId = (r + c) % 5; 
-                node.Init(r, c, regionId, globalColorPalette);
+                    Node node = cube.GetComponent<Node>();
+                    if (node == null)
+                    {
+                        node = cube.AddComponent<Node>();
+                    }
 
-                gridNodes[r, c] = node;
+                    int regionId = (r + c) % 5; 
+                    node.Init(r, c, regionId, globalColorPalette);
+
+                    gridNodes[r, c] = node;
+                }
             }
         }
 
-        // Truyền chính xác cubeWidth vào để lợn ăn đúng 70% bề rộng ô cờ
-        SpawnPigsAboveGrid(cellSize, cubeWidth, spawnY);
+        // Sinh ngẫu nhiên Size con lợn vào các ô viền ảo vừa tính
+        SpawnRandomPigsOnBorder(borderSlotPositions, cubeWidth);
+        
+        List<Vector3> loopPath = GetPerimeterPath(cellSize, startOffset, spawnY);
+
+        foreach (GameObject pigObj in spawnedPigs)
+        {
+            Pig pig = pigObj.GetComponent<Pig>();
+            if (pig != null)
+            {
+                // Cho lợn bắt đầu chạy vòng quanh viền
+                pig.StartPatrolling(loopPath);
+            }
+        }
     }
 
     /// <summary>
-    /// Sinh các con lợn xếp thành 1 hàng ngang phía trên cạnh trên của bàn cờ
+    /// Sinh ngẫu nhiên Size con lợn tại các tọa độ viền ảo (-1 hoặc Size)
     /// </summary>
-    private void SpawnPigsAboveGrid(float cellSize, float cubeWidth, float spawnY)
+    private void SpawnRandomPigsOnBorder(List<Vector3> borderPositions, float cubeWidth)
     {
         ClearPigs();
 
@@ -88,39 +111,72 @@ public class GridManager : MonoBehaviour
             return;
         }
 
-        int topRowIndex = Size - 1;
-        float targetPigWidth = cubeWidth * pigScaleRatio; 
+        if (borderPositions.Count == 0) return;
 
-        for (int c = 0; c < Size; c++)
+        // Trộn ngẫu nhiên (Fisher-Yates Shuffle) các vị trí viền
+        for (int i = borderPositions.Count - 1; i > 0; i--)
         {
-            Node referenceNode = gridNodes[topRowIndex, c];
-            if (referenceNode == null) continue;
+            int randomIndex = Random.Range(0, i + 1);
+            Vector3 temp = borderPositions[i];
+            borderPositions[i] = borderPositions[randomIndex];
+            borderPositions[randomIndex] = temp;
+        }
 
-            GameObject pigPrefab = PrefabConfig.Instance.pig[c % PrefabConfig.Instance.pig.Length];
+        float targetPigWidth = cubeWidth * pigScaleRatio;
+        // Số lượng lợn sinh ra đúng bằng Size ban đầu (ví dụ: 5 con)
+        int pigsToSpawn = Mathf.Min(Size, borderPositions.Count);
+
+        for (int i = 0; i < pigsToSpawn; i++)
+        {
+            Vector3 spawnPos = borderPositions[i];
+            spawnPos.y += 0.25f;
+
+            GameObject pigPrefab = PrefabConfig.Instance.pig[i % PrefabConfig.Instance.pig.Length];
             if (pigPrefab == null) continue;
 
-            Vector3 refPos = referenceNode.transform.position;
-            Vector3 pigPos = new Vector3(
-                refPos.x,
-                spawnY + 0.25f,
-                refPos.z + (cellSize * pigTopMargin)
-            );
+            GameObject newPig = Instantiate(pigPrefab, spawnPos, Quaternion.Euler(0, 180, 0), transform);
+            newPig.name = $"Pig_{i}";
 
-            // Sinh con lợn làm con của gridBase để ăn theo không gian tọa độ thế giới chuẩn
-            GameObject newPig = Instantiate(pigPrefab, pigPos, Quaternion.identity, transform);
-            newPig.name = $"Pig_Col_{c}";
-            newPig.transform.rotation = Quaternion.Euler(0, 180, 0);
-
-            // Tự động đo kích thước mesh thực tế của prefab và scale đều 3 trục về đúng targetPigWidth
             FitPigUniformScale(newPig, targetPigWidth);
 
             spawnedPigs.Add(newPig);
         }
     }
-
+    
     /// <summary>
-    /// Đo đạc mesh của prefab lợn và scale đều 3 trục (X, Y, Z) để đạt đúng kích thước targetWidth mà không méo dáng
+    /// Tạo danh sách các tọa độ viền ảo theo vòng khép kín (theo chiều kim đồng hồ)
     /// </summary>
+    public List<Vector3> GetPerimeterPath(float cellSize, float startOffset, float spawnY)
+    {
+        List<Vector3> path = new List<Vector3>();
+        Transform baseTransform = gridBase.transform;
+
+        // 1. Cạnh trên cùng: từ trái sang phải (r = Size, c từ -1 -> Size)
+        for (int c = -1; c < Size; c++)
+            path.Add(GetWorldPos(Size, c, cellSize, startOffset, spawnY));
+
+        // 2. Cạnh bên phải: từ trên xuống dưới (c = Size, r từ Size -> -1)
+        for (int r = Size; r > -1; r--)
+            path.Add(GetWorldPos(r, Size, cellSize, startOffset, spawnY));
+
+        // 3. Cạnh đáy dưới cùng: từ phải sang trái (r = -1, c từ Size -> -1)
+        for (int c = Size; c > -1; c--)
+            path.Add(GetWorldPos(-1, c, cellSize, startOffset, spawnY));
+
+        // 4. Cạnh bên trái: từ dưới lên trên (c = -1, r từ -1 -> Size)
+        for (int r = -1; r < Size; r++)
+            path.Add(GetWorldPos(r, -1, cellSize, startOffset, spawnY));
+
+        return path;
+    }
+
+    private Vector3 GetWorldPos(int r, int c, float cellSize, float startOffset, float spawnY)
+    {
+        float posX = gridBase.transform.position.x + (c * cellSize) - startOffset;
+        float posZ = gridBase.transform.position.z + (r * cellSize) - startOffset;
+        return new Vector3(posX, spawnY + 0.25f, posZ);
+    }
+
     private void FitPigUniformScale(GameObject pigObj, float targetWidth)
     {
         Renderer[] rends = pigObj.GetComponentsInChildren<Renderer>();
@@ -211,6 +267,9 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Lấy Node chơi chính (hàng, cột từ 0 đến Size - 1)
+    /// </summary>
     public Node GetNode(int row, int col)
     {
         if (gridNodes == null || row < 0 || row >= Size || col < 0 || col >= Size)
@@ -219,6 +278,11 @@ public class GridManager : MonoBehaviour
         }
 
         return gridNodes[row, col];
+    }
+
+    public List<GameObject> GetSpawnedPigs()
+    {
+        return spawnedPigs;
     }
     
     public void SetSize(int newSize)

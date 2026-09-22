@@ -1,4 +1,5 @@
 ﻿using System;
+using _Script.Events;
 using UnityEngine;
 
 namespace _Script
@@ -25,10 +26,26 @@ namespace _Script
             
         }
 
-        public void HandleGridLoaded()
+        private void OnEnable()
         {
-            
+            EventManager.Subscribe<CellClickedEvent>(OnCellClicked);
         }
+        
+        private void OnDisable()
+        {
+            EventManager.Unsubscribe<CellClickedEvent>(OnCellClicked);
+        }
+        
+        private void OnCellClicked(CellClickedEvent e)
+        {
+            Debug.Log($"Người chơi vừa click vào ô hàng {e.ClickedNode.row}, cột {e.ClickedNode.col}");
+            /*var pig = gridManager.GetPigAtColumn(e.ClickedNode.col);
+            if (pig == null) return;
+            var pigComponent = pig.GetComponent<Pig>();
+            pigComponent.MoveToNode(e.ClickedNode);*/
+
+        }
+        
         public GridManager GetGridManager()
         {
             return gridManager;
