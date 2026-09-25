@@ -460,7 +460,7 @@ SkinnedMeshRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4910436586949988683}
   m_Enabled: 1
-  m_CastShadows: 1
+  m_CastShadows: 0
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
   m_StaticShadowCaster: 0
@@ -727,7 +727,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   moveSpeed: 2
   turnSpeed: 10
-  gridTag: grid
 --- !u!1 &5650760867242857245
 GameObject:
   m_ObjectHideFlags: 0

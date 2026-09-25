@@ -50,7 +50,7 @@ namespace _Script
                 levelColorPalette[colorId] = reqColor.ToUnityColor();
             }
 
-            gridManager.SetSize(CurrentLevelData.n); 
+            gridManager.InitializeGrid(CurrentLevelData);
             ApplyNodeColorsFromData();
         }
 
@@ -260,6 +260,7 @@ namespace _Script
         public void HandleLevelUp()
         {
             currentLevel++; 
+            Debug.Log($"[LevelManager] Bắt đầu màn chơi mới: Level {currentLevel}");
             InitLevel();
         }
 

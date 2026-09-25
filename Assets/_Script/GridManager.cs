@@ -101,6 +101,7 @@ public class GridManager : MonoBehaviour
                         node.Init(r, c, regionId, nodeColor);
                     }
 
+                    cube.isStatic = true;
                     gridNodes[r, c] = node;
                 }
             }
@@ -352,11 +353,5 @@ public class GridManager : MonoBehaviour
     public List<GameObject> GetSpawnedPigs()
     {
         return spawnedPigs;
-    }
-    
-    public void SetSize(int newSize)
-    {
-        Size = Mathf.Max(1, newSize);
-        InitializeGrid();
     }
 }
