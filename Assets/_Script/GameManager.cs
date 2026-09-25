@@ -52,8 +52,13 @@ namespace _Script
                 Debug.LogWarning("Không thể đặt lợn vào ô này do vi phạm luật!");
                 return;
             }
+            
+            if (!LevelManager.Instance.CanLeadToSolution(targetNode))
+            {
+                Debug.LogWarning("Nước đi này dẫn vào ngõ cụt (không thể giải thắng bàn cờ)! Hãy chọn ô khác.");
+                return;
+            }
 
-            // 1. Lọc các con lợn còn tồn tại và đang chạy tuần tra
             List<Pig> availablePigs = new List<Pig>();
             foreach (var pigObj in gridManager.GetSpawnedPigs()) 
             {

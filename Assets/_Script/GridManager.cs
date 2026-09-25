@@ -12,6 +12,7 @@ public class GridManager : MonoBehaviour
 
     [Header("Tham chiếu đối tượng")]
     [SerializeField] private GameObject gridBase;
+    [SerializeField] private GameObject gridGround;
 
     [Header("Bảng màu hệ thống")]
     [SerializeField] private ColorPaletteSO globalColorPalette;
@@ -50,6 +51,8 @@ public class GridManager : MonoBehaviour
         float cubeWidth = cellSize * tileFillRatio;
         float startOffset = (gridWidth - cellSize) * 0.5f;
         float spawnY = gridTopY + (tileThickness * 0.5f);
+        
+        UpdateGroundSize(cellSize);
 
         Vector3 localScale = CalculateLocalScale(baseTransform, cubeWidth, tileThickness);
 
@@ -117,6 +120,51 @@ public class GridManager : MonoBehaviour
                 pig.StartPatrolling(loopPath);
             }
         }
+    }
+    
+    /// <summary>
+    /// Điều chỉnh kích thước và vị trí của gridGround thành ma trận (Size + 2) x (Size + 2)
+    /// </summary>
+    private void UpdateGroundSize(float cellSize)
+    {
+        if (gridGround == null) return;
+
+        // Chiều rộng bao quanh bao gồm cả 2 ô viền ngoài (trên/dưới và trái/phải)
+        float targetGroundWidth = (Size + 2) * cellSize;
+
+        Transform groundTransform = gridGround.transform;
+
+        // Lấy kích thước mesh gốc (Renderer bounds không phụ thuộc scale)
+        if (gridGround.TryGetComponent<Renderer>(out var rend))
+        {
+            Vector3 originalMeshSize = rend.bounds.size;
+            Vector3 currentScale = groundTransform.localScale;
+
+            // Kích thước chuẩn chưa tính scale
+            float meshX = (currentScale.x != 0) ? originalMeshSize.x / currentScale.x : 1f;
+            float meshZ = (currentScale.z != 0) ? originalMeshSize.z / currentScale.z : 1f;
+
+            groundTransform.localScale = new Vector3(
+                targetGroundWidth / meshX,
+                currentScale.y, 
+                targetGroundWidth / meshZ
+            );
+        }
+        else
+        {
+            // Fallback nếu dùng Cube Unity mặc định (kích thước 1x1x1)
+            groundTransform.localScale = new Vector3(
+                targetGroundWidth,
+                groundTransform.localScale.y,
+                targetGroundWidth
+            );
+        }
+
+        // Đồng bộ tâm của gridGround theo trục X và Z với gridBase
+        Vector3 newGroundPos = gridGround.transform.position;
+        newGroundPos.x = gridBase.transform.position.x;
+        newGroundPos.z = gridBase.transform.position.z;
+        gridGround.transform.position = newGroundPos;
     }
 
     /// <summary>

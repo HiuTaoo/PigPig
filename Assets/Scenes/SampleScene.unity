@@ -640,8 +640,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   <Size>k__BackingField: 6
   gridBase: {fileID: 223352575}
+  gridGround: {fileID: 871875928}
   globalColorPalette: {fileID: 11400000, guid: 0afcd846f1833434bb66f3870ab4512f, type: 2}
-  tileFillRatio: 1
+  tileFillRatio: 0.98
   tileThickness: 0.1
   pigScaleRatio: 0.7
 --- !u!1 &773794402
@@ -799,7 +800,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 38, z: 0}
-  m_LocalScale: {x: 13, y: 0.13000001, z: 13}
+  m_LocalScale: {x: 10, y: 0.10000001, z: 10}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 773794403}

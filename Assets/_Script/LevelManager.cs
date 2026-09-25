@@ -72,7 +72,7 @@ namespace _Script
                 }
             }
         }
-
+        #region Rule
         public bool ValidatePlacement(Node targetNode)
         {
             if (targetNode == null) return false; 
@@ -108,6 +108,130 @@ namespace _Script
 
             return true; 
         }
+        
+        /// <summary>
+        /// Kiểm tra xem giả lập đặt lợn tại ô candidateNode thì sau đó bàn cờ có thể giải thắng được không
+        /// </summary>
+        public bool CanLeadToSolution(Node candidateNode)
+        {
+            if (candidateNode == null) return false;
+
+            int n = CurrentLevelData != null ? CurrentLevelData.n : gridManager.Size;
+
+            // 1. Lưu trạng thái các hàng đã có lợn
+            int[] queensPerRow = new int[n];
+            for (int r = 0; r < n; r++) queensPerRow[r] = -1;
+
+            // Nạp các con lợn hiện đã đặt trên bàn cờ
+            foreach (var node in placedPigs.Keys)
+            {
+                if (node.row >= 0 && node.row < n)
+                {
+                    queensPerRow[node.row] = node.col;
+                }
+            }
+
+            // Đặt thử ô ứng viên vào
+            queensPerRow[candidateNode.row] = candidateNode.col;
+
+            // Đếm số lượng lợn theo màu hiện tại (bao gồm cả ô ứng viên)
+            Dictionary<int, int> simulatedColorCounts = new Dictionary<int, int>();
+            foreach (var node in placedPigs.Keys)
+            {
+                if (!simulatedColorCounts.ContainsKey(node.colorRegionID))
+                    simulatedColorCounts[node.colorRegionID] = 0;
+                simulatedColorCounts[node.colorRegionID]++;
+            }
+
+            if (!simulatedColorCounts.ContainsKey(candidateNode.colorRegionID))
+                simulatedColorCounts[candidateNode.colorRegionID] = 0;
+            simulatedColorCounts[candidateNode.colorRegionID]++;
+
+            // Kiểm tra ngay ô ứng viên có làm vượt chỉ tiêu màu không
+            if (levelColorTargets.TryGetValue(candidateNode.colorRegionID, out int maxRequired))
+            {
+                if (simulatedColorCounts[candidateNode.colorRegionID] > maxRequired)
+                    return false;
+            }
+
+            // 2. Chạy đệ quy quay lui để tìm xem có nghiệm cho các hàng còn lại không
+            return SolveRow(0, queensPerRow, simulatedColorCounts, n);
+        }
+
+        private bool SolveRow(int row, int[] queensPerRow, Dictionary<int, int> colorCounts, int n)
+        {
+            // Đã xếp thành công cho cả n hàng
+            if (row >= n)
+            {
+                // Kiểm tra xem tất cả các màu có đạt đúng số lượng mục tiêu chưa
+                foreach (var kvp in levelColorTargets)
+                {
+                    colorCounts.TryGetValue(kvp.Key, out int current);
+                    if (current != kvp.Value) return false;
+                }
+                return true;
+            }
+
+            // Hàng này đã có lợn (từ bàn cờ cũ hoặc chính là candidateNode) -> nhảy sang hàng tiếp theo
+            if (queensPerRow[row] != -1)
+            {
+                return SolveRow(row + 1, queensPerRow, colorCounts, n);
+            }
+
+            // Thử từng cột trong hàng này
+            for (int col = 0; col < n; col++)
+            {
+                Node node = gridManager.GetNode(row, col);
+                if (node == null) continue;
+
+                if (IsSafePlacement(row, col, node.colorRegionID, queensPerRow, colorCounts, n))
+                {
+                    // Đặt thử
+                    queensPerRow[row] = col;
+                    if (!colorCounts.ContainsKey(node.colorRegionID))
+                        colorCounts[node.colorRegionID] = 0;
+                    colorCounts[node.colorRegionID]++;
+
+                    // Tiếp tục giải hàng kế
+                    if (SolveRow(row + 1, queensPerRow, colorCounts, n))
+                    {
+                        return true; // Tìm thấy ít nhất 1 nghiệm thắng
+                    }
+
+                    // Backtrack (hoàn tác)
+                    queensPerRow[row] = -1;
+                    colorCounts[node.colorRegionID]--;
+                }
+            }
+
+            return false; // Ngõ cụt
+        }
+
+        private bool IsSafePlacement(int row, int col, int colorId, int[] queensPerRow, Dictionary<int, int> colorCounts, int n)
+        {
+            // Kiểm tra chỉ tiêu màu
+            if (levelColorTargets.TryGetValue(colorId, out int maxRequired))
+            {
+                colorCounts.TryGetValue(colorId, out int current);
+                if (current >= maxRequired) return false;
+            }
+
+            // Kiểm tra va chạm với các quân lợn khác ở các hàng đã đặt
+            for (int r = 0; r < n; r++)
+            {
+                int c = queensPerRow[r];
+                if (c == -1) continue;
+
+                // 1. Trùng cột
+                if (c == col) return false;
+
+                // 2. Phạm vi lân cận 1 ô (ngang, dọc, chéo 8 hướng)
+                if (Mathf.Abs(r - row) <= 1 && Mathf.Abs(c - col) <= 1)
+                    return false;
+            }
+
+            return true;
+        }
 
         public void ConfirmPlacement(Pig pig, Node targetNode)
         {
@@ -130,6 +254,8 @@ namespace _Script
             Debug.Log(">>> CHIẾN THẮNG LEVEL! <<<"); 
             HandleLevelUp(); 
         }
+        
+        #endregion
 
         public void HandleLevelUp()
         {
