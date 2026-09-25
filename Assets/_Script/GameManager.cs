@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using _Script.Events;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 namespace _Script
 {
@@ -21,9 +23,12 @@ namespace _Script
             
             gridManager = gameObject.GetComponentInChildren<GridManager>();
             levelManager = gameObject.GetComponentInChildren<LevelManager>();
-
-            levelManager.InitLevel();
             
+        }
+
+        private void Start()
+        {
+            levelManager.InitLevel();
         }
 
         private void OnEnable()
@@ -38,12 +43,46 @@ namespace _Script
         
         private void OnCellClicked(CellClickedEvent e)
         {
-            Debug.Log($"Người chơi vừa click vào ô hàng {e.ClickedNode.row}, cột {e.ClickedNode.col}");
-            /*var pig = gridManager.GetPigAtColumn(e.ClickedNode.col);
-            if (pig == null) return;
-            var pigComponent = pig.GetComponent<Pig>();
-            pigComponent.MoveToNode(e.ClickedNode);*/
+            if (e.ClickedNode == null) return;
 
+            Node targetNode = e.ClickedNode;
+        
+            if (!LevelManager.Instance.ValidatePlacement(targetNode))
+            {
+                Debug.LogWarning("Không thể đặt lợn vào ô này do vi phạm luật!");
+                return;
+            }
+
+            // 1. Lọc các con lợn còn tồn tại và đang chạy tuần tra
+            List<Pig> availablePigs = new List<Pig>();
+            foreach (var pigObj in gridManager.GetSpawnedPigs()) 
+            {
+                if (pigObj != null && pigObj.TryGetComponent<Pig>(out var pig))
+                {
+                    if (pig.IsPatrolling && !pig.IsPlaced) 
+                    {
+                        availablePigs.Add(pig);
+                    }
+                }
+            }
+
+            if (availablePigs.Count == 0) return;
+
+            int randomIndex = Random.Range(0, availablePigs.Count);
+            Pig selectedPig = availablePigs[randomIndex];
+
+            selectedPig.StopPatrolling(); 
+
+            Vector3 targetPosition = targetNode.transform.position;
+            targetPosition.y = selectedPig.transform.position.y;
+
+            selectedPig.transform.position = targetPosition;
+            selectedPig.transform.rotation = Quaternion.Euler(0,180,0);
+
+            LevelManager.Instance.ConfirmPlacement(selectedPig, targetNode);
+            e.ClickedNode.nodeStatus = NodeStatus.Correct;
+            
+            e.ClickedNode.ShowNodeInfo();
         }
         
         public GridManager GetGridManager()

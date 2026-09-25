@@ -14,6 +14,10 @@ namespace _Script
 
         [Tooltip("Tốc độ quay đầu khi rẽ góc")]
         [SerializeField] private float turnSpeed = 15f;
+        
+        public bool IsPlaced { get; private set; } = false;
+        public int AssignedColorRegionID { get; private set; } = -1;
+        public Node CurrentNode { get; private set; }
 
         public bool IsPatrolling { get; private set; } = false;
 
@@ -26,15 +30,30 @@ namespace _Script
             anim = GetComponent<Animator>();
             HelpMethod.FitBoxCollider(gameObject);
         }
-
+        
         /// <summary>
-        /// Nạp danh sách đường đi nhưng chưa chạy ngay, đợi va chạm với Grid
+        /// Gán lợn vào ô hợp lệ và nhận màu của ô đó
         /// </summary>
-        public void PreparePatrolPath(List<Vector3> loopPath)
+        public void PlaceOnNode(Node node)
         {
-            cachedLoopPath = loopPath;
+            CurrentNode = node;
+            IsPlaced = true;
+            AssignedColorRegionID = node.colorRegionID; 
+            
         }
 
+        /// <summary>
+        /// Trả lợn về trạng thái trung tính khi bị gỡ khỏi ô (Undo)
+        /// </summary>
+        public void ResetPlacement()
+        {
+            IsPlaced = false;
+            AssignedColorRegionID = -1;
+            CurrentNode = null;
+        }
+        
+        
+        #region Patrol
         /// <summary>
         /// Bắt đầu chạy tuần tra quanh viền
         /// </summary>
@@ -112,5 +131,6 @@ namespace _Script
 
             patrolCoroutine = null;
         }
+        #endregion
     }
 }

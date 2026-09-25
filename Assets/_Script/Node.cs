@@ -23,14 +23,12 @@ public class Node : MonoBehaviour
             propBlock = new MaterialPropertyBlock();
         }
 
-        public void Init(int r, int c, int regionId, ColorPaletteSO palette)
+        public void Init(int r, int c, int regionId, Color directColor)
         {
-            this.row = r;
-            this.col = c;
-            this.colorRegionID = regionId;
-            this.colorPalette = palette;
-
-            ApplyColorByRegionId();
+            this.row = r; 
+            this.col = c; 
+            this.colorRegionID = regionId; 
+            SetColor(directColor); 
         }
         
         private void OnMouseDown()
@@ -103,5 +101,10 @@ public class Node : MonoBehaviour
 
         private void ClearMarker()
         {
+        }
+
+        public void ShowNodeInfo()
+        {
+            Debug.Log($"Hàng số {row}, cột số {col}, màu {colorRegionID}, Trạng thái {nodeStatus}");
         }
     }

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 using _Script;
+using _Script.Data;
+using _Script.Events;
 
 public class GridManager : MonoBehaviour
 {
@@ -25,14 +27,19 @@ public class GridManager : MonoBehaviour
     [SerializeField] private float pigScaleRatio = 0.7f;
 
     private Node[,] gridNodes;
-    
+
     private List<GameObject> spawnedPigs = new List<GameObject>();
 
-    public void InitializeGrid()
+    public void InitializeGrid(LevelJsonData levelData = null)
     {
         if (!ValidateReferences()) return;
 
         ClearGrid();
+        
+        if (levelData != null && levelData.n > 0)
+        {
+            Size = levelData.n;
+        }
 
         gridNodes = new Node[Size, Size];
 
@@ -46,6 +53,15 @@ public class GridManager : MonoBehaviour
 
         Vector3 localScale = CalculateLocalScale(baseTransform, cubeWidth, tileThickness);
 
+        Dictionary<Vector2Int, NodeJsonData> jsonNodeMap = new Dictionary<Vector2Int, NodeJsonData>();
+        if (levelData != null && levelData.nodes != null)
+        {
+            foreach (var nData in levelData.nodes)
+            {
+                jsonNodeMap[new Vector2Int(nData.row, nData.col)] = nData;
+            }
+        }
+        
         List<Vector3> borderSlotPositions = new List<Vector3>();
 
         for (int r = -1; r <= Size; r++)
@@ -64,7 +80,7 @@ public class GridManager : MonoBehaviour
                 }
                 else
                 {
-                    GameObject cube = Instantiate(PrefabConfig.Instance.cube, slotPos, Quaternion.identity, baseTransform);
+                    GameObject cube = ObjectPooler.Instance.GetCube(slotPos, Quaternion.identity, baseTransform);
                     cube.name = $"Cube_{r}_{c}";
                     cube.transform.localScale = localScale;
 
@@ -74,8 +90,13 @@ public class GridManager : MonoBehaviour
                         node = cube.AddComponent<Node>();
                     }
 
-                    int regionId = (r + c) % 5; 
-                    node.Init(r, c, regionId, globalColorPalette);
+                    Vector2Int coord = new Vector2Int(r, c);
+                    if (jsonNodeMap.TryGetValue(coord, out NodeJsonData nData))
+                    {
+                        int regionId = nData.GetColorID();
+                        Color nodeColor = nData.ToUnityColor();
+                        node.Init(r, c, regionId, nodeColor);
+                    }
 
                     gridNodes[r, c] = node;
                 }
@@ -134,7 +155,7 @@ public class GridManager : MonoBehaviour
             GameObject pigPrefab = PrefabConfig.Instance.pig[i % PrefabConfig.Instance.pig.Length];
             if (pigPrefab == null) continue;
 
-            GameObject newPig = Instantiate(pigPrefab, spawnPos, Quaternion.Euler(0, 180, 0), transform);
+            GameObject newPig = ObjectPooler.Instance.GetPig(i % PrefabConfig.Instance.pig.Length, spawnPos, Quaternion.Euler(0, 180, 0), transform);
             newPig.name = $"Pig_{i}";
 
             FitPigUniformScale(newPig, targetPigWidth);
@@ -169,7 +190,7 @@ public class GridManager : MonoBehaviour
 
         return path;
     }
-
+    
     private Vector3 GetWorldPos(int r, int c, float cellSize, float startOffset, float spawnY)
     {
         float posX = gridBase.transform.position.x + (c * cellSize) - startOffset;
