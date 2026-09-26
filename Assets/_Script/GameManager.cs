@@ -34,27 +34,44 @@ namespace _Script
         private void OnEnable()
         {
             EventManager.Subscribe<CellClickedEvent>(OnCellClicked);
+            EventManager.Subscribe<CellDoubleClickedEvent>(OnCellDoubleClicked);
         }
         
         private void OnDisable()
         {
             EventManager.Unsubscribe<CellClickedEvent>(OnCellClicked);
+            EventManager.Unsubscribe<CellDoubleClickedEvent>(OnCellDoubleClicked);
         }
         
         private void OnCellClicked(CellClickedEvent e)
         {
             if (e.ClickedNode == null) return;
+            gridManager.SpawnMarker(e.ClickedNode);
+        }
+        
+        private void OnCellDoubleClicked(CellDoubleClickedEvent e)
+        {
+            if (e.ClickedNode == null) return;
+            gridManager.ClearMarker(e.ClickedNode);
+            TrySelectCell(e);
+        }
 
+        private void TrySelectCell(CellDoubleClickedEvent e)
+        {
             Node targetNode = e.ClickedNode;
         
             if (!LevelManager.Instance.ValidatePlacement(targetNode))
             {
+                gridManager.SpawnMarker(e.ClickedNode, true);
+                targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Không thể đặt lợn vào ô này do vi phạm luật!");
                 return;
             }
             
             if (!LevelManager.Instance.CanLeadToSolution(targetNode))
             {
+                gridManager.SpawnMarker(e.ClickedNode, true);
+                targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Nước đi này dẫn vào ngõ cụt (không thể giải thắng bàn cờ)! Hãy chọn ô khác.");
                 return;
             }
@@ -85,7 +102,7 @@ namespace _Script
             selectedPig.transform.rotation = Quaternion.Euler(0,180,0);
 
             LevelManager.Instance.ConfirmPlacement(selectedPig, targetNode);
-            e.ClickedNode.nodeStatus = NodeStatus.Correct;
+            e.ClickedNode.SetStatus(NodeStatus.Correct);
             
             e.ClickedNode.ShowNodeInfo();
         }

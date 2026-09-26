@@ -13,6 +13,16 @@
             ClickedNode = node;
         }
     }
+    
+    public struct CellDoubleClickedEvent
+    {
+        public Node ClickedNode { get; }
+
+        public CellDoubleClickedEvent(Node node)
+        {
+            ClickedNode = node;
+        }
+    }
 
     public struct CheckRulesEvent { }
 

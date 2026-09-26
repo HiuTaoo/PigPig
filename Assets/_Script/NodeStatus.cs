@@ -4,6 +4,7 @@
     {
         Empty,
         Correct,
-        Marked
+        Marked,
+        Incorrect
     }
 }

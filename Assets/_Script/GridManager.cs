@@ -22,20 +22,24 @@ public class GridManager : MonoBehaviour
     [SerializeField] private float tileFillRatio = 0.95f;
     [SerializeField] private float tileThickness = 5f;
 
-    [Header("Cấu hình Lợn")]
-    [Tooltip("Tỉ lệ kích thước con lợn so với ô cube (0.7 = 70% bề rộng ô)")]
+
     [Range(0.2f, 1f)]
     [SerializeField] private float pigScaleRatio = 0.7f;
+    [Range(0.2f, 1f)]
+    [SerializeField] private float markerScaleRatio = 0.8f;
 
     private Node[,] gridNodes;
 
     private List<GameObject> spawnedPigs = new List<GameObject>();
+    
+    private Dictionary<Node, GameObject> activeMarkers = new Dictionary<Node, GameObject>();
 
     public void InitializeGrid(LevelJsonData levelData = null)
     {
         if (!ValidateReferences()) return;
 
         ClearGrid();
+        ClearAllMarkers();
         
         if (levelData != null && levelData.n > 0)
         {
@@ -117,12 +121,12 @@ public class GridManager : MonoBehaviour
             Pig pig = pigObj.GetComponent<Pig>();
             if (pig != null)
             {
-                // Cho lợn bắt đầu chạy vòng quanh viền
                 pig.StartPatrolling(loopPath);
             }
         }
     }
-    
+
+    #region SpawnPig On Border
     /// <summary>
     /// Điều chỉnh kích thước và vị trí của gridGround thành ma trận (Size + 2) x (Size + 2)
     /// </summary>
@@ -187,13 +191,10 @@ public class GridManager : MonoBehaviour
         for (int i = borderPositions.Count - 1; i > 0; i--)
         {
             int randomIndex = Random.Range(0, i + 1);
-            Vector3 temp = borderPositions[i];
-            borderPositions[i] = borderPositions[randomIndex];
-            borderPositions[randomIndex] = temp;
+            (borderPositions[i], borderPositions[randomIndex]) = (borderPositions[randomIndex], borderPositions[i]);
         }
 
         float targetPigWidth = cubeWidth * pigScaleRatio;
-        // Số lượng lợn sinh ra đúng bằng Size ban đầu (ví dụ: 5 con)
         int pigsToSpawn = Mathf.Min(Size, borderPositions.Count);
 
         for (int i = 0; i < pigsToSpawn; i++)
@@ -207,7 +208,7 @@ public class GridManager : MonoBehaviour
             GameObject newPig = ObjectPooler.Instance.GetPig(i % PrefabConfig.Instance.pig.Length, spawnPos, Quaternion.Euler(0, 180, 0), transform);
             newPig.name = $"Pig_{i}";
 
-            FitPigUniformScale(newPig, targetPigWidth);
+            FitObjectUniformScale(newPig, targetPigWidth);
 
             spawnedPigs.Add(newPig);
         }
@@ -221,19 +222,15 @@ public class GridManager : MonoBehaviour
         List<Vector3> path = new List<Vector3>();
         Transform baseTransform = gridBase.transform;
 
-        // 1. Cạnh trên cùng: từ trái sang phải (r = Size, c từ -1 -> Size)
         for (int c = -1; c < Size; c++)
             path.Add(GetWorldPos(Size, c, cellSize, startOffset, spawnY));
 
-        // 2. Cạnh bên phải: từ trên xuống dưới (c = Size, r từ Size -> -1)
         for (int r = Size; r > -1; r--)
             path.Add(GetWorldPos(r, Size, cellSize, startOffset, spawnY));
 
-        // 3. Cạnh đáy dưới cùng: từ phải sang trái (r = -1, c từ Size -> -1)
         for (int c = Size; c > -1; c--)
             path.Add(GetWorldPos(-1, c, cellSize, startOffset, spawnY));
 
-        // 4. Cạnh bên trái: từ dưới lên trên (c = -1, r từ -1 -> Size)
         for (int r = -1; r < Size; r++)
             path.Add(GetWorldPos(r, -1, cellSize, startOffset, spawnY));
 
@@ -247,7 +244,7 @@ public class GridManager : MonoBehaviour
         return new Vector3(posX, spawnY + 0.25f, posZ);
     }
 
-    private void FitPigUniformScale(GameObject pigObj, float targetWidth)
+    private void FitObjectUniformScale(GameObject pigObj, float targetWidth)
     {
         Renderer[] rends = pigObj.GetComponentsInChildren<Renderer>();
         if (rends.Length > 0)
@@ -282,6 +279,97 @@ public class GridManager : MonoBehaviour
         }
         spawnedPigs.Clear();
     }
+    #endregion
+
+    #region Spawn Marker
+/// <summary>
+    /// Sinh marker (ví dụ: hoa trắng/hoa đỏ) lên trên bề mặt node
+    /// </summary>
+    /// <param name="targetNode">Ô Node cần đặt marker</param>
+    /// <param name="isRedFlower">true: redFlower, false: whiteFlower</param>
+    public void SpawnMarker(Node targetNode, bool isRedFlower = false)
+    {
+        if (targetNode == null || targetNode.nodeStatus == NodeStatus.Correct 
+                               || targetNode.nodeStatus == NodeStatus.Incorrect) return;
+
+        if (activeMarkers.ContainsKey(targetNode))
+        {
+            ClearMarker(targetNode);
+            return;
+        }
+
+        if (PrefabConfig.Instance == null)
+        {
+            Debug.LogWarning("[GridManager] PrefabConfig.Instance chưa khởi tạo!", this);
+            return;
+        }
+
+        GameObject markerPrefab = isRedFlower ? PrefabConfig.Instance.redFlower : PrefabConfig.Instance.whiteFlower;
+        if (markerPrefab == null)
+        {
+            Debug.LogWarning($"[GridManager] Prefab marker {(isRedFlower ? "redFlower" : "whiteFlower")} chưa được gán trong PrefabConfig!", this);
+            return;
+        }
+
+        Vector3 spawnPos = targetNode.transform.position;
+        if (targetNode.TryGetComponent<Renderer>(out var nodeRend))
+        {
+            spawnPos.y = nodeRend.bounds.max.y;
+        }
+        else
+        {
+            spawnPos.y += tileThickness * 0.5f;
+        }
+
+        GameObject markerObj = ObjectPooler.Instance.Get(markerPrefab, spawnPos, Quaternion.identity, transform);
+        markerObj.name = $"Marker_{targetNode.row}_{targetNode.col}";
+
+        Transform baseTransform = gridBase.transform;
+        GetGridBounds(baseTransform, out float gridWidth, out _);
+        float cellSize = gridWidth / Size;
+        float targetMarkerWidth = cellSize * tileFillRatio * markerScaleRatio;
+
+        FitObjectUniformScale(markerObj, targetMarkerWidth); 
+
+        activeMarkers[targetNode] = markerObj;
+        targetNode.SetStatus(NodeStatus.Marked);
+    }
+
+    /// <summary>
+    /// Xóa marker tại một ô Node cụ thể
+    /// </summary>
+    public void ClearMarker(Node targetNode)
+    {
+        if (targetNode == null) return;
+
+        if (activeMarkers.TryGetValue(targetNode, out GameObject markerObj))
+        {
+            if (markerObj != null)
+            {
+                ObjectPooler.Instance.Return(markerObj);
+            }
+            activeMarkers.Remove(targetNode);
+            targetNode.SetStatus(NodeStatus.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Xóa toàn bộ marker hiện có trên toàn bộ bàn cờ (ví dụ khi reset hoặc level up)
+    /// </summary>
+    public void ClearAllMarkers()
+    {
+        foreach (var kvp in activeMarkers)
+        {
+            if (kvp.Value != null)
+            {
+                Destroy(kvp.Value);
+            }
+        }
+        activeMarkers.Clear();
+    }
+    
+
+    #endregion
 
     private bool ValidateReferences()
     {

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace _Script
@@ -7,13 +8,14 @@ namespace _Script
     {
         public static ObjectPooler Instance { get; private set; }
 
-        [Header("Số lượng khởi tạo trước (Preload)")]
-        [SerializeField] private int initialCubeCount = 128;
-        [SerializeField] private int initialPigCountPerType = 10;
+        [Header("Số lượng khởi tạo mặc định (Preload)")]
+        [SerializeField] private int defaultPoolCount = 32;
+        [SerializeField] private int cubePreloadCount = 100;
 
-        private readonly Queue<GameObject> cubePool = new Queue<GameObject>();
-
-        private readonly Dictionary<int, Queue<GameObject>> pigPools = new Dictionary<int, Queue<GameObject>>();
+        // Lưu trữ tất cả các pool theo InstanceID của Prefab gốc
+        private readonly Dictionary<int, Queue<GameObject>> poolDictionary = new Dictionary<int, Queue<GameObject>>();
+        // Giúp tra cứu xem 1 instance đang chạy thuộc về prefab gốc nào khi cần Return
+        private readonly Dictionary<int, int> instanceToPrefabMap = new Dictionary<int, int>();
 
         private Transform poolContainer;
 
@@ -33,116 +35,80 @@ namespace _Script
 
         private void Start()
         {
-            PrewarmPools();
+            AutoPrewarmAllPrefabConfig();
         }
 
         /// <summary>
-        /// Tạo sẵn các đối tượng vào pool khi bắt đầu game
+        /// Tự động quét toàn bộ các biến GameObject và GameObject[] trong PrefabConfig để tạo pool
         /// </summary>
-        private void PrewarmPools()
+        private void AutoPrewarmAllPrefabConfig()
         {
-            if (PrefabConfig.Instance == null) return; 
+            if (PrefabConfig.Instance == null) return;
 
-            // 1. Tạo trước Cube
-            if (PrefabConfig.Instance.cube != null) 
+            FieldInfo[] fields = typeof(PrefabConfig).GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (FieldInfo field in fields)
             {
-                for (int i = 0; i < initialCubeCount; i++)
+                // 1. Nếu biến là GameObject đơn (cube, whiteFlower, redFlower, ...)
+                if (field.FieldType == typeof(GameObject))
                 {
-                    GameObject obj = CreateNewInstance(PrefabConfig.Instance.cube); 
-                    cubePool.Enqueue(obj);
-                }
-            }
-
-            // 2. Tạo trước từng loại Pig
-            if (PrefabConfig.Instance.pig != null) 
-            {
-                for (int i = 0; i < PrefabConfig.Instance.pig.Length; i++) 
-                {
-                    GameObject pigPrefab = PrefabConfig.Instance.pig[i]; 
-                    if (pigPrefab == null) continue;
-
-                    int prefabId = pigPrefab.GetInstanceID();
-                    if (!pigPools.ContainsKey(prefabId))
+                    GameObject prefab = field.GetValue(PrefabConfig.Instance) as GameObject;
+                    if (prefab != null)
                     {
-                        pigPools[prefabId] = new Queue<GameObject>();
-                    }
-
-                    for (int j = 0; j < initialPigCountPerType; j++)
-                    {
-                        GameObject obj = CreateNewInstance(pigPrefab);
-                        pigPools[prefabId].Enqueue(obj);
+                        int count = (field.Name.ToLower().Contains("cube")) ? cubePreloadCount : defaultPoolCount;
+                        PrewarmPrefab(prefab, count);
                     }
                 }
+                // 2. Nếu biến là mảng GameObject[] (mảng pig, ...)
+                else if (field.FieldType == typeof(GameObject[]))
+                {
+                    GameObject[] prefabArray = field.GetValue(PrefabConfig.Instance) as GameObject[];
+                    if (prefabArray != null)
+                    {
+                        foreach (GameObject prefab in prefabArray)
+                        {
+                            if (prefab != null)
+                            {
+                                PrewarmPrefab(prefab, defaultPoolCount);
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        #region CUBE POOLING
-
-        public GameObject GetCube(Vector3 position, Quaternion rotation, Transform parent = null)
+        private void PrewarmPrefab(GameObject prefab, int count)
         {
-            GameObject obj;
-
-            if (cubePool.Count > 0)
+            int prefabId = prefab.GetInstanceID();
+            if (!poolDictionary.ContainsKey(prefabId))
             {
-                obj = cubePool.Dequeue();
-            }
-            else
-            {
-                obj = CreateNewInstance(PrefabConfig.Instance.cube); 
+                poolDictionary[prefabId] = new Queue<GameObject>();
             }
 
-            obj.transform.SetParent(parent);
-            obj.transform.position = position;
-            obj.transform.rotation = rotation;
-            obj.SetActive(true);
-
-            return obj;
+            for (int i = 0; i < count; i++)
+            {
+                GameObject obj = CreateNewInstance(prefab, prefabId);
+                poolDictionary[prefabId].Enqueue(obj);
+            }
         }
 
-        public void ReturnCube(GameObject cubeObj)
-        {
-            if (cubeObj == null) return;
-
-            cubeObj.SetActive(false);
-            cubeObj.transform.SetParent(poolContainer);
-            cubePool.Enqueue(cubeObj);
-        }
-
-        #endregion
-
-        #region PIG POOLING
+        #region GENERAL POOL API (DÙNG CHO MỌI PREFAB)
 
         /// <summary>
-        /// Lấy lợn từ pool theo index trong mảng PrefabConfig.Instance.pig
+        /// Lấy đối tượng từ pool dựa trên bất kỳ Prefab nào
         /// </summary>
-        public GameObject GetPig(int pigTypeIndex, Vector3 position, Quaternion rotation, Transform parent = null)
+        public GameObject Get(GameObject prefab, Vector3 position, Quaternion rotation, Transform parent = null)
         {
-            if (PrefabConfig.Instance == null || PrefabConfig.Instance.pig == null || PrefabConfig.Instance.pig.Length == 0) //
+            if (prefab == null) return null;
+
+            int prefabId = prefab.GetInstanceID();
+            if (!poolDictionary.ContainsKey(prefabId))
             {
-                Debug.LogWarning("[ObjectPooler] Danh sách Pig Prefab trống!");
-                return null;
-            }
-
-            int safeIndex = Mathf.Clamp(pigTypeIndex, 0, PrefabConfig.Instance.pig.Length - 1); 
-            GameObject pigPrefab = PrefabConfig.Instance.pig[safeIndex]; 
-            return GetPig(pigPrefab, position, rotation, parent);
-        }
-
-        /// <summary>
-        /// Lấy lợn từ pool theo trực tiếp Prefab tham chiếu
-        /// </summary>
-        public GameObject GetPig(GameObject pigPrefab, Vector3 position, Quaternion rotation, Transform parent = null)
-        {
-            if (pigPrefab == null) return null;
-
-            int prefabId = pigPrefab.GetInstanceID();
-            if (!pigPools.ContainsKey(prefabId))
-            {
-                pigPools[prefabId] = new Queue<GameObject>();
+                poolDictionary[prefabId] = new Queue<GameObject>();
             }
 
             GameObject obj;
-            Queue<GameObject> pool = pigPools[prefabId];
+            Queue<GameObject> pool = poolDictionary[prefabId];
 
             if (pool.Count > 0)
             {
@@ -150,7 +116,7 @@ namespace _Script
             }
             else
             {
-                obj = CreateNewInstance(pigPrefab);
+                obj = CreateNewInstance(prefab, prefabId);
             }
 
             obj.transform.SetParent(parent);
@@ -162,29 +128,70 @@ namespace _Script
         }
 
         /// <summary>
-        /// Trả lợn về pool. Cần truyền đúng prefab gốc của nó để đưa vào đúng hàng đợi.
+        /// Thu hồi đối tượng về pool (Tự động nhận diện không cần truyền prefab gốc)
         /// </summary>
-        public void ReturnPig(GameObject pigObj, GameObject originalPrefab)
+        public void Return(GameObject instanceObj)
         {
-            if (pigObj == null || originalPrefab == null) return;
+            if (instanceObj == null) return;
 
-            int prefabId = originalPrefab.GetInstanceID();
-            if (!pigPools.ContainsKey(prefabId))
+            int instanceId = instanceObj.GetInstanceID();
+
+            // Tìm prefab ID gốc đã tạo ra instance này
+            if (instanceToPrefabMap.TryGetValue(instanceId, out int prefabId))
             {
-                pigPools[prefabId] = new Queue<GameObject>();
+                if (poolDictionary.TryGetValue(prefabId, out var pool))
+                {
+                    instanceObj.SetActive(false);
+                    instanceObj.transform.SetParent(poolContainer);
+                    pool.Enqueue(instanceObj);
+                    return;
+                }
             }
 
-            pigObj.SetActive(false);
-            pigObj.transform.SetParent(poolContainer);
-            pigPools[prefabId].Enqueue(pigObj);
+            // Nếu đối tượng không xuất phát từ pool thì Destroy thông thường
+            Destroy(instanceObj);
         }
 
         #endregion
 
-        private GameObject CreateNewInstance(GameObject prefab)
+        #region CÁC HÀM TIỆN ÍCH CŨ ĐỂ KHÔNG BỊ LỖI DỰ ÁN
+
+        public GameObject GetCube(Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            return Get(PrefabConfig.Instance.cube, position, rotation, parent);
+        }
+
+        public GameObject GetPig(int pigTypeIndex, Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            if (PrefabConfig.Instance == null || PrefabConfig.Instance.pig == null || PrefabConfig.Instance.pig.Length == 0)
+                return null;
+
+            int safeIndex = Mathf.Clamp(pigTypeIndex, 0, PrefabConfig.Instance.pig.Length - 1);
+            return Get(PrefabConfig.Instance.pig[safeIndex], position, rotation, parent);
+        }
+
+        public GameObject GetWhiteFlower(Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            return Get(PrefabConfig.Instance.whiteFlower, position, rotation, parent);
+        }
+
+        public GameObject GetRedFlower(Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            return Get(PrefabConfig.Instance.redFlower, position, rotation, parent);
+        }
+
+        public void ReturnCube(GameObject cubeObj) => Return(cubeObj);
+
+        public void ReturnPig(GameObject pigObj, GameObject originalPrefab = null) => Return(pigObj);
+
+        #endregion
+
+        private GameObject CreateNewInstance(GameObject prefab, int prefabId)
         {
             GameObject obj = Instantiate(prefab, poolContainer);
             obj.SetActive(false);
+            // Ghi nhớ đối tượng này sinh ra từ Prefab nào
+            instanceToPrefabMap[obj.GetInstanceID()] = prefabId;
             return obj;
         }
     }

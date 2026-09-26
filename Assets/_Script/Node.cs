@@ -1,4 +1,5 @@
-﻿using _Script;
+﻿using System.Collections;
+using _Script;
 using _Script.Events;
 using UnityEngine;
 
@@ -8,7 +9,8 @@ public class Node : MonoBehaviour
         public int row;
         public int col;
         public int colorRegionID;
-        public NodeStatus nodeStatus = NodeStatus.Empty;
+
+        public NodeStatus nodeStatus { get; private set; } = NodeStatus.Empty;
 
         [Header("Bảng màu")]
         [SerializeField] private ColorPaletteSO colorPalette;
@@ -16,6 +18,9 @@ public class Node : MonoBehaviour
         private Renderer cubeRenderer;
         private MaterialPropertyBlock propBlock;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        
+        private Coroutine singleClickCoroutine;
+        private const float DoubleClickThreshold = 0.2f;
 
         private void Awake()
         {
@@ -33,9 +38,31 @@ public class Node : MonoBehaviour
         
         private void OnMouseDown()
         {
-            EventManager.Raise(new CellClickedEvent(this));
+            if (singleClickCoroutine != null)
+            {
+                // Nếu coroutine đang chờ mà có click thứ 2 -> Xác nhận là Double Click
+                StopCoroutine(singleClickCoroutine);
+                singleClickCoroutine = null;
+
+                // Bắn duy nhất sự kiện Double Click
+                EventManager.Raise(new CellDoubleClickedEvent(this));
+            }
+            else
+            {
+                // Lần click đầu tiên -> Bắt đầu đếm thời gian chờ
+                singleClickCoroutine = StartCoroutine(WaitSingleClickRoutine());
+            }
         }
 
+        private IEnumerator WaitSingleClickRoutine()
+        {
+            yield return new WaitForSeconds(DoubleClickThreshold);
+
+            // Hết thời gian chờ mà không có click 2 -> Xác nhận là Single Click
+            singleClickCoroutine = null;
+            EventManager.Raise(new CellClickedEvent(this));
+        }
+        
         /// <summary>
         /// Tự đọc colorRegionID từ palette và set màu cho Renderer
         /// </summary>
@@ -82,7 +109,6 @@ public class Node : MonoBehaviour
             if (newStatus == nodeStatus) return;
 
             nodeStatus = newStatus;
-            ClearMarker();
 
             switch (nodeStatus)
             {
@@ -93,14 +119,6 @@ public class Node : MonoBehaviour
                 case NodeStatus.Empty:
                     break;
             }
-        }
-
-        private void SpawnMarker(GameObject prefab)
-        {
-        }
-
-        private void ClearMarker()
-        {
         }
 
         public void ShowNodeInfo()

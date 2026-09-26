@@ -592,8 +592,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da7516c399f74cf392ba5bcac942c606, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialCubeCount: 128
-  initialPigCountPerType: 10
+  defaultPoolCount: 32
+  cubePreloadCount: 100
 --- !u!1 &422370980
 GameObject:
   m_ObjectHideFlags: 0
@@ -645,6 +645,7 @@ MonoBehaviour:
   tileFillRatio: 0.98
   tileThickness: 0.1
   pigScaleRatio: 0.7
+  markerScaleRatio: 0.8
 --- !u!1 &773794402
 GameObject:
   m_ObjectHideFlags: 0
@@ -924,6 +925,10 @@ MonoBehaviour:
   - {fileID: 1154802775872713031, guid: 03cc0975f9faee14daf9ffb95b866323, type: 3}
   - {fileID: 5454611907515329522, guid: 62eeecdabb0887c4aa3eaf9891ee8116, type: 3}
   cube: {fileID: 8353007925278519912, guid: 93eb0c4e3b3c79549a11b89e86bc0a1d, type: 3}
+  whiteFlower: {fileID: 1180214279521385891, guid: a08fdb5fc973d7a4a818082454f2fabc,
+    type: 3}
+  redFlower: {fileID: 8646616098770483999, guid: be2a4c58ebc598b4b9bc3dc335930777,
+    type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

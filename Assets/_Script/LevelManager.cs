@@ -75,7 +75,7 @@ namespace _Script
         #region Rule
         public bool ValidatePlacement(Node targetNode)
         {
-            if (targetNode == null) return false; 
+            if (targetNode == null || targetNode.nodeStatus == NodeStatus.Incorrect) return false; 
 
             if (placedPigs.ContainsKey(targetNode)) return false; 
 

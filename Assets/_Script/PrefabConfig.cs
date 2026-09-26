@@ -8,6 +8,8 @@ namespace _Script
         public static PrefabConfig Instance;
         public GameObject[] pig;
         public GameObject cube;
+        public GameObject whiteFlower;
+        public GameObject redFlower;
 
         private void Awake()
         {
