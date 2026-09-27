@@ -12,9 +12,6 @@ public class Node : MonoBehaviour
 
         public NodeStatus nodeStatus { get; private set; } = NodeStatus.Empty;
 
-        [Header("Bảng màu")]
-        [SerializeField] private ColorPaletteSO colorPalette;
-
         private Renderer cubeRenderer;
         private MaterialPropertyBlock propBlock;
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -63,20 +60,6 @@ public class Node : MonoBehaviour
             EventManager.Raise(new CellClickedEvent(this));
         }
         
-        /// <summary>
-        /// Tự đọc colorRegionID từ palette và set màu cho Renderer
-        /// </summary>
-        public void ApplyColorByRegionId()
-        {
-            if (colorPalette == null)
-            {
-                Debug.LogWarning($"[Node] Ô ({row}, {col}) chưa được gán ColorPaletteSO!", this);
-                return;
-            }
-
-            Color targetColor = colorPalette.GetColor(colorRegionID);
-            SetColor(targetColor);
-        }
 
         public void SetColor(Color color)
         {

@@ -24,6 +24,26 @@
         }
     }
 
+    public struct CellCorrectClickEvent
+    {
+        public Node ClickedNode { get; }
+
+        public CellCorrectClickEvent(Node node)
+        {
+            ClickedNode = node;
+        }
+    }
+    
+    public struct CellInCorrectClickEvent
+    {
+        public Node ClickedNode { get; }
+
+        public CellInCorrectClickEvent(Node node)
+        {
+            ClickedNode = node;
+        }
+    }
+
     public struct CheckRulesEvent { }
 
     public struct LevelCompletedEvent

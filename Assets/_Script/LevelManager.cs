@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using _Script.Data;
+using _Script.UI;
 
 namespace _Script
 {
@@ -8,7 +9,8 @@ namespace _Script
     {
         public static LevelManager Instance { get; private set; }
 
-        public int currentLevel { get; private set; } = 1; 
+        private int currentLevel { get; set; } = 1;
+        private int heart = 3;
 
         public LevelJsonData CurrentLevelData { get; private set; }
 
@@ -52,6 +54,13 @@ namespace _Script
 
             gridManager.InitializeGrid(CurrentLevelData);
             ApplyNodeColorsFromData();
+            var colors = new List<Color>();
+            foreach (var color in levelColorPalette.Values)
+            {
+                colors.Add(color);
+            }
+            var data = new HUDViewData(currentLevel, colors);
+            UIManager.Instance.OpenView<HUDView>(UIID.GameplayHUD, data);
         }
 
         /// <summary>
@@ -71,6 +80,19 @@ namespace _Script
                     node.Init(nodeData.row, nodeData.col, colorId, color); 
                 }
             }
+        }
+
+        public Queue<GameObject> SpawnHealthUI(GameObject parent)
+        {
+            var healthIcons = new Queue<GameObject>();
+            for (int i = 0; i < heart; i++)
+            {
+                var health = ObjectPooler.Instance.Get(PrefabConfig.Instance.pigUIIcon, parent.transform.position,
+                    Quaternion.identity, parent.transform);
+                healthIcons.Enqueue(health);
+            }
+
+            return healthIcons;
         }
         #region Rule
         public bool ValidatePlacement(Node targetNode)
@@ -264,7 +286,12 @@ namespace _Script
             InitLevel();
         }
 
-        public int GetPlacedCountByColor(int colorRegionID)
+        public void Replay()
+        {
+            InitLevel();
+        }
+
+        private int GetPlacedCountByColor(int colorRegionID)
         {
             int count = 0; 
             foreach (Node node in placedPigs.Keys) 
@@ -273,6 +300,17 @@ namespace _Script
                     count++;
             }
             return count; 
+        }
+        
+        public Color GetColorByRegionId(int regionId)
+        {
+            if (levelColorPalette.TryGetValue(regionId, out Color color))
+            {
+                return color;
+            }
+
+            Debug.LogWarning($"[LevelManager] Không tìm thấy màu cho ID: {regionId}");
+            return Color.white;
         }
     }
 }

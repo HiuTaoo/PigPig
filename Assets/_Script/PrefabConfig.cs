@@ -10,6 +10,8 @@ namespace _Script
         public GameObject cube;
         public GameObject whiteFlower;
         public GameObject redFlower;
+        public GameObject colorUIIcon;
+        public GameObject pigUIIcon;
 
         private void Awake()
         {

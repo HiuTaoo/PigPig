@@ -55,7 +55,7 @@ namespace _Script
             gridManager.ClearMarker(e.ClickedNode);
             TrySelectCell(e);
         }
-
+        
         private void TrySelectCell(CellDoubleClickedEvent e)
         {
             Node targetNode = e.ClickedNode;
@@ -65,6 +65,7 @@ namespace _Script
                 gridManager.SpawnMarker(e.ClickedNode, true);
                 targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Không thể đặt lợn vào ô này do vi phạm luật!");
+                EventManager.Raise(new CellInCorrectClickEvent(targetNode));
                 return;
             }
             
@@ -73,6 +74,7 @@ namespace _Script
                 gridManager.SpawnMarker(e.ClickedNode, true);
                 targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Nước đi này dẫn vào ngõ cụt (không thể giải thắng bàn cờ)! Hãy chọn ô khác.");
+                EventManager.Raise(new CellInCorrectClickEvent(targetNode));
                 return;
             }
 
@@ -103,6 +105,7 @@ namespace _Script
 
             LevelManager.Instance.ConfirmPlacement(selectedPig, targetNode);
             e.ClickedNode.SetStatus(NodeStatus.Correct);
+            EventManager.Raise(new CellCorrectClickEvent(e.ClickedNode));
             
             e.ClickedNode.ShowNodeInfo();
         }
