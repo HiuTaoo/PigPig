@@ -9,6 +9,7 @@ namespace _Script
     {
         public static LevelManager Instance { get; private set; }
 
+        private const string CurrentLevelKey = "CURRENT_LEVEL";
         private int currentLevel { get; set; } = 1;
         private int heart = 3;
 
@@ -25,6 +26,8 @@ namespace _Script
         {
             if (Instance == null) Instance = this; 
             else Destroy(gameObject); 
+            
+            currentLevel = PlayerPrefs.GetInt(CurrentLevelKey, 1);
         }
 
         private void Start()
@@ -611,6 +614,9 @@ namespace _Script
         public void HandleLevelUp()
         {
             currentLevel++; 
+            PlayerPrefs.SetInt(CurrentLevelKey, currentLevel);
+            PlayerPrefs.Save();
+            
             Debug.Log($"[LevelManager] Bắt đầu màn chơi mới: Level {currentLevel}");
             InitLevel();
         }

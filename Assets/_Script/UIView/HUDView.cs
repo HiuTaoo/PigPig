@@ -137,7 +137,7 @@ namespace _Script.UI
             base.OnClose();
         }
 
-        private void OnBackButtonClick() => Debug.Log("Back button clicked");
+        private void OnBackButtonClick() => GameManager.Instance.BackToMainMenu();
         private void OnSettingsButtonClick() => Debug.Log("Settings button clicked");
         private void OnToolButton1Click() => LevelManager.Instance.Tool_FindSingleValidCell();
         private void OnToolButton2Click() => LevelManager.Instance.Tool_MarkInvalidCellsFromPigOrSuggest();

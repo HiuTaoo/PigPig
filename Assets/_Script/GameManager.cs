@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using _Script.Events;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Random = UnityEngine.Random;
 
 namespace _Script
@@ -113,6 +114,11 @@ namespace _Script
             EventManager.Raise(new CellCorrectClickEvent(targetNode));
             
             targetNode.ShowNodeInfo();
+        }
+
+        public void BackToMainMenu()
+        {
+            SceneManager.LoadScene(0);
         }
         
         public GridManager GetGridManager()
