@@ -77,7 +77,12 @@ namespace _Script
                 EventManager.Raise(new CellInCorrectClickEvent(targetNode));
                 return;
             }
+            
+            PlacePig(e.ClickedNode);
+        }
 
+        public void PlacePig(Node targetNode)
+        {
             List<Pig> availablePigs = new List<Pig>();
             foreach (var pigObj in gridManager.GetSpawnedPigs()) 
             {
@@ -104,10 +109,10 @@ namespace _Script
             selectedPig.transform.rotation = Quaternion.Euler(0,180,0);
 
             LevelManager.Instance.ConfirmPlacement(selectedPig, targetNode);
-            e.ClickedNode.SetStatus(NodeStatus.Correct);
-            EventManager.Raise(new CellCorrectClickEvent(e.ClickedNode));
+            targetNode.SetStatus(NodeStatus.Correct);
+            EventManager.Raise(new CellCorrectClickEvent(targetNode));
             
-            e.ClickedNode.ShowNodeInfo();
+            targetNode.ShowNodeInfo();
         }
         
         public GridManager GetGridManager()

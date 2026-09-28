@@ -139,9 +139,9 @@ namespace _Script.UI
 
         private void OnBackButtonClick() => Debug.Log("Back button clicked");
         private void OnSettingsButtonClick() => Debug.Log("Settings button clicked");
-        private void OnToolButton1Click() => Debug.Log("Tool button 1 clicked");
-        private void OnToolButton2Click() => Debug.Log("Tool button 2 clicked");
-        private void OnToolButton3Click() => Debug.Log("Tool button 3 clicked");
+        private void OnToolButton1Click() => LevelManager.Instance.Tool_FindSingleValidCell();
+        private void OnToolButton2Click() => LevelManager.Instance.Tool_MarkInvalidCellsFromPigOrSuggest();
+        private void OnToolButton3Click() => LevelManager.Instance.Tool_Mark3InvalidCellsNearValidPlacements();
 
         private void OnCellCorrectClicked(CellCorrectClickEvent cellCorrectClickEvent)
         {

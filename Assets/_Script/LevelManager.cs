@@ -89,11 +89,12 @@ namespace _Script
             {
                 var health = ObjectPooler.Instance.Get(PrefabConfig.Instance.pigUIIcon, parent.transform.position,
                     Quaternion.identity, parent.transform);
-                healthIcons.Enqueue(health);
+                healthIcons.Enqueue(health );
             }
 
             return healthIcons;
         }
+        
         #region Rule
         public bool ValidatePlacement(Node targetNode)
         {
@@ -277,6 +278,334 @@ namespace _Script
             HandleLevelUp(); 
         }
         
+        #endregion
+        
+        #region Tool Utilities
+
+        /// <summary>
+        /// TOOL 1: Tìm ra 1 vị trí có thể đặt lợn (hợp lệ và dẫn tới nghiệm thắng)
+        /// </summary>
+        public void Tool_FindSingleValidCell()
+        {
+            int n = CurrentLevelData != null ? CurrentLevelData.n : gridManager.Size;
+
+            for (int r = 0; r < n; r++)
+            {
+                for (int c = 0; c < n; c++)
+                {
+                    Node node = gridManager.GetNode(r, c);
+                    if (node == null || placedPigs.ContainsKey(node) || node.nodeStatus == NodeStatus.Incorrect) 
+                        continue;
+
+                    // Kiểm tra vừa đúng luật vừa dẫn tới chiến thắng
+                    if (ValidatePlacement(node) && CanLeadToSolution(node))
+                    {
+                        GameManager.Instance.PlacePig(node);
+                        return;
+                    }
+                }
+            }
+
+            Debug.LogWarning("[Tool 1] Không tìm thấy ô nào khả thi để đặt lợn!");
+        }
+
+        /// <summary>
+        /// TOOL 2 Cải tiến:
+        /// Vòng lặp hỗ trợ:
+        /// 1. Nếu chưa có lợn: Đặt 1 lợn.
+        /// 2. Nếu có lợn: Tìm xem có con lợn nào mà các ô xung quanh/cùng hàng/cột chưa được đánh dấu không -> Đánh dấu ô vi phạm quanh nó.
+        /// 3. Nếu mọi con lợn hiện tại đều đã được đánh dấu sạch xung quanh -> Tự động đặt thêm 1 lợn mới.
+        /// </summary>
+        public void Tool_MarkInvalidCellsFromPigOrSuggest()
+        {
+            int n = CurrentLevelData != null ? CurrentLevelData.n : gridManager.Size;
+
+            if (placedPigs.Count == 0)
+            {
+                Tool_FindSingleValidCell();
+                return;
+            }
+
+            Node pigToMark = null;
+            foreach (var pigNode in placedPigs.Keys)
+            {
+                if (HasUnmarkedViolatedCells(n, pigNode))
+                {
+                    pigToMark = pigNode;
+                    break; 
+                }
+            }
+
+            if (pigToMark != null)
+            {
+                MarkedAroundPig(n, pigToMark);
+            }
+            else
+            {
+                Debug.Log("[Tool 2] Tất cả lợn hiện tại đã được đánh dấu xung quanh. Đặt tiếp lợn mới!");
+                Tool_FindSingleValidCell();
+            }
+        }
+
+        /// <summary>
+        /// Kiểm tra xem quanh con lợn này còn ô nào vi phạm luật mà chưa được gán Marked không
+        /// </summary>
+        private bool HasUnmarkedViolatedCells(int n, Node pigNode)
+        {
+            int pigR = pigNode.row;
+            int pigC = pigNode.col;
+
+            for (int r = 0; r < n; r++)
+            {
+                for (int c = 0; c < n; c++)
+                {
+                    Node target = gridManager.GetNode(r, c);
+                    if (target == null || target == pigNode || placedPigs.ContainsKey(target))
+                        continue;
+
+                    bool isViolated = false;
+
+                    if (target.row == pigR || target.col == pigC)
+                    {
+                        isViolated = true;
+                    }
+                    else if (Mathf.Abs(target.row - pigR) <= 1 && Mathf.Abs(target.col - pigC) <= 1)
+                    {
+                        isViolated = true;
+                    }
+
+                    if (isViolated && target.nodeStatus != NodeStatus.Marked)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void MarkedAroundPig(int n, Node chosenPigNode)
+        {
+            int pigR = chosenPigNode.row;
+            int pigC = chosenPigNode.col;
+
+            for (int r = 0; r < n; r++)
+            {
+                for (int c = 0; c < n; c++)
+                {
+                    Node target = gridManager.GetNode(r, c);
+                    if (target == null || target == chosenPigNode || placedPigs.ContainsKey(target)) 
+                        continue;
+
+                    bool isViolated = false;
+
+                    if (target.row == pigR || target.col == pigC)
+                    {
+                        isViolated = true;
+                    }
+                    else if (Mathf.Abs(target.row - pigR) <= 1 && Mathf.Abs(target.col - pigC) <= 1)
+                    {
+                        isViolated = true;
+                    }
+
+                    if (isViolated && target.nodeStatus != NodeStatus.Marked)
+                    {
+                        target.SetStatus(NodeStatus.Marked);
+                        gridManager.SpawnMarker(target);
+                    }
+                }
+            }
+            
+            Debug.Log($"[Tool 2] Đã đánh dấu toàn bộ ô phạm luật từ con lợn tại ô ({pigR}, {pigC})");
+        }
+
+        #region Tool 3 Solution-Based
+        /// <summary>
+        /// TOOL 3:
+        /// 1. Tìm trước 1 nghiệm chiến thắng hoàn chỉnh cho cả bàn cờ.
+        /// 2. Xác định các ô cần đặt lợn trong nghiệm đó (Target Placements).
+        /// 3. Chọn ngẫu nhiên 3 ô xung quanh các vị trí đó mà KHÔNG THUỘC nghiệm để đánh dấu.
+        /// -> Khi spam liên tục, chỉ duy nhất các ô chiến thắng còn lại!
+        /// </summary>
+        public void Tool_Mark3InvalidCellsNearValidPlacements()
+        {
+            int n = CurrentLevelData != null ? CurrentLevelData.n : gridManager.Size;
+
+            // 1. Tìm toàn bộ nghiệm chuẩn của bàn cờ từ trạng thái lợn đã đặt hiện tại
+            HashSet<Node> fullSolutionNodes = FindFullWinningSolution(n);
+            if (fullSolutionNodes == null || fullSolutionNodes.Count == 0)
+            {
+                Debug.LogWarning("[Tool 3] Bàn cờ hiện tại đang ở thế ngõ cụt, không thể tìm nghiệm chiến thắng!");
+                return;
+            }
+
+            // 2. Gom tất cả các ô xung quanh (8 ô lân cận) của các vị trí nghiệm mà CHƯA bị đánh dấu
+            // Lưu ý: Tuyệt đối KHÔNG đánh dấu vào các ô nằm trong fullSolutionNodes!
+            List<Node> candidatesToMark = new List<Node>();
+
+            foreach (var winNode in fullSolutionNodes)
+            {
+                // Bỏ qua các ô đã được người chơi đặt lợn lên rồi
+                if (placedPigs.ContainsKey(winNode)) continue;
+
+                for (int dr = -1; dr <= 1; dr++)
+                {
+                    for (int dc = -1; dc <= 1; dc++)
+                    {
+                        if (dr == 0 && dc == 0) continue;
+
+                        int nr = winNode.row + dr;
+                        int nc = winNode.col + dc;
+
+                        if (nr >= 0 && nr < n && nc >= 0 && nc < n)
+                        {
+                            Node neighbor = gridManager.GetNode(nr, nc);
+                            if (neighbor != null 
+                                && neighbor.nodeStatus != NodeStatus.Marked 
+                                && neighbor.nodeStatus != NodeStatus.Incorrect
+                                && !placedPigs.ContainsKey(neighbor)
+                                && !fullSolutionNodes.Contains(neighbor)) 
+                            {
+                                if (!candidatesToMark.Contains(neighbor))
+                                {
+                                    candidatesToMark.Add(neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Nếu các ô 8 hướng quanh nghiệm đã bị đánh dấu hết, lấy bất kỳ ô rác nào trên bàn cờ
+            if (candidatesToMark.Count < 3)
+            {
+                for (int r = 0; r < n; r++)
+                {
+                    for (int c = 0; c < n; c++)
+                    {
+                        Node node = gridManager.GetNode(r, c);
+                        if (node != null 
+                            && node.nodeStatus != NodeStatus.Marked 
+                            && node.nodeStatus != NodeStatus.Incorrect
+                            && !placedPigs.ContainsKey(node)
+                            && !fullSolutionNodes.Contains(node))
+                        {
+                            if (!candidatesToMark.Contains(node))
+                            {
+                                candidatesToMark.Add(node);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (candidatesToMark.Count == 0)
+            {
+                Debug.Log("[Tool 3] Đã dọn sạch toàn bộ ô rác! Chỉ còn lại các ô chiến thắng.");
+                return;
+            }
+
+            // 4. Chọn ngẫu nhiên tối đa 3 ô để spawn marker
+            int countToMark = Mathf.Min(3, candidatesToMark.Count);
+            for (int i = 0; i < countToMark; i++)
+            {
+                int randIdx = Random.Range(0, candidatesToMark.Count);
+                Node target = candidatesToMark[randIdx];
+                candidatesToMark.RemoveAt(randIdx);
+
+                target.SetStatus(NodeStatus.Marked);
+                gridManager.SpawnMarker(target);
+            }
+
+            Debug.Log($"[Tool 3] Đã đánh dấu {countToMark} ô vi phạm mà không chạm vào nghiệm chuẩn.");
+        }
+
+        /// <summary>
+        /// Giải và trả về tập hợp toàn bộ vị trí Node cần đặt lợn để thắng màn chơi
+        /// </summary>
+        private HashSet<Node> FindFullWinningSolution(int n)
+        {
+            int[] queensPerRow = new int[n];
+            for (int r = 0; r < n; r++) queensPerRow[r] = -1;
+
+            Dictionary<int, int> simulatedColorCounts = new Dictionary<int, int>();
+
+            // Đưa lợn đã đặt vào bàn cờ giải lập
+            foreach (var node in placedPigs.Keys)
+            {
+                if (node.row >= 0 && node.row < n)
+                {
+                    queensPerRow[node.row] = node.col;
+                    if (!simulatedColorCounts.ContainsKey(node.colorRegionID))
+                        simulatedColorCounts[node.colorRegionID] = 0;
+                    simulatedColorCounts[node.colorRegionID]++;
+                }
+            }
+
+            // Chạy đệ quy tìm ra nghiệm
+            if (SolveRowDetailed(0, queensPerRow, simulatedColorCounts, n))
+            {
+                HashSet<Node> solutionNodes = new HashSet<Node>();
+                for (int r = 0; r < n; r++)
+                {
+                    if (queensPerRow[r] != -1)
+                    {
+                        Node solvedNode = gridManager.GetNode(r, queensPerRow[r]);
+                        if (solvedNode != null)
+                        {
+                            solutionNodes.Add(solvedNode);
+                        }
+                    }
+                }
+                return solutionNodes;
+            }
+
+            return null;
+        }
+
+        private bool SolveRowDetailed(int row, int[] queensPerRow, Dictionary<int, int> colorCounts, int n)
+        {
+            if (row >= n)
+            {
+                foreach (var kvp in levelColorTargets)
+                {
+                    colorCounts.TryGetValue(kvp.Key, out int current);
+                    if (current != kvp.Value) return false;
+                }
+                return true;
+            }
+
+            if (queensPerRow[row] != -1)
+            {
+                return SolveRowDetailed(row + 1, queensPerRow, colorCounts, n);
+            }
+
+            for (int col = 0; col < n; col++)
+            {
+                Node node = gridManager.GetNode(row, col);
+                if (node == null || node.nodeStatus == NodeStatus.Incorrect) continue;
+
+                if (IsSafePlacement(row, col, node.colorRegionID, queensPerRow, colorCounts, n))
+                {
+                    queensPerRow[row] = col;
+                    if (!colorCounts.ContainsKey(node.colorRegionID))
+                        colorCounts[node.colorRegionID] = 0;
+                    colorCounts[node.colorRegionID]++;
+
+                    if (SolveRowDetailed(row + 1, queensPerRow, colorCounts, n))
+                    {
+                        return true;
+                    }
+
+                    queensPerRow[row] = -1;
+                    colorCounts[node.colorRegionID]--;
+                }
+            }
+
+            return false;
+        }
+
+        #endregion
         #endregion
 
         public void HandleLevelUp()
