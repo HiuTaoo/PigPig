@@ -12,6 +12,7 @@ namespace _Script
         public GameObject redFlower;
         public GameObject colorUIIcon;
         public GameObject pigUIIcon;
+        public GameObject starUIPrefab;
 
         private void Awake()
         {

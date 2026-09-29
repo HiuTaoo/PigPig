@@ -35,18 +35,18 @@ public class Node : MonoBehaviour
         
         private void OnMouseDown()
         {
+            if (Time.timeScale == 0)
+                return;
+            
             if (singleClickCoroutine != null)
             {
-                // Nếu coroutine đang chờ mà có click thứ 2 -> Xác nhận là Double Click
                 StopCoroutine(singleClickCoroutine);
                 singleClickCoroutine = null;
 
-                // Bắn duy nhất sự kiện Double Click
                 EventManager.Raise(new CellDoubleClickedEvent(this));
             }
             else
             {
-                // Lần click đầu tiên -> Bắt đầu đếm thời gian chờ
                 singleClickCoroutine = StartCoroutine(WaitSingleClickRoutine());
             }
         }
@@ -55,7 +55,6 @@ public class Node : MonoBehaviour
         {
             yield return new WaitForSeconds(DoubleClickThreshold);
 
-            // Hết thời gian chờ mà không có click 2 -> Xác nhận là Single Click
             singleClickCoroutine = null;
             EventManager.Raise(new CellClickedEvent(this));
         }
@@ -65,7 +64,6 @@ public class Node : MonoBehaviour
         {
             if (cubeRenderer == null) cubeRenderer = GetComponent<Renderer>();
 
-            // Dùng MaterialPropertyBlock tối ưu hiệu năng mobile
             cubeRenderer.GetPropertyBlock(propBlock);
             propBlock.SetColor(BaseColorId, color);
             cubeRenderer.SetPropertyBlock(propBlock);

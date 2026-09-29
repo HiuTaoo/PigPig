@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using _Script.Data;
+using _Script.Events;
 using _Script.UI;
 
 namespace _Script
@@ -11,7 +12,25 @@ namespace _Script
 
         private const string CurrentLevelKey = "CURRENT_LEVEL";
         private int currentLevel { get; set; } = 1;
-        private int heart = 3;
+        private int _currentHealth = 3;
+
+        public int currentHealth
+        {
+            get => _currentHealth;
+            private set
+            {
+                _currentHealth = Mathf.Max(0, value);
+                if (_currentHealth == 0)
+                {
+                    Debug.LogWarning("GameOver");
+                    EventManager.Raise(new GameOverEvent(GetCurrentLevel()));
+                }
+            }
+        }
+        
+        private float levelStartTime;
+        private int toolUsedCount = 0;
+        private const int TargetSolveTime = 120;
 
         public LevelJsonData CurrentLevelData { get; private set; }
 
@@ -47,6 +66,7 @@ namespace _Script
 
             CurrentLevelData = LevelDataReader.LoadLevelFromResources(currentLevel);
             if (CurrentLevelData == null) return;
+            currentHealth = 3;
 
             foreach (var reqColor in CurrentLevelData.requiredColors)
             {
@@ -88,7 +108,7 @@ namespace _Script
         public Queue<GameObject> SpawnHealthUI(GameObject parent)
         {
             var healthIcons = new Queue<GameObject>();
-            for (int i = 0; i < heart; i++)
+            for (int i = 0; i < currentHealth; i++)
             {
                 var health = ObjectPooler.Instance.Get(PrefabConfig.Instance.pigUIIcon, parent.transform.position,
                     Quaternion.identity, parent.transform);
@@ -110,7 +130,7 @@ namespace _Script
             {
                 if (currentCountInRegion >= maxRequired)
                 {
-                    Debug.Log($"[Luật] Vùng màu {targetNode.colorRegionID} đã đủ {maxRequired} con!"); 
+                    Debug.Log($"[Luật] Vùng màu {targetNode.colorRegionID} đã đủ {maxRequired} con!");
                     return false; 
                 }
             }
@@ -119,7 +139,7 @@ namespace _Script
             {
                 if (node.row == targetNode.row || node.col == targetNode.col) 
                 {
-                    Debug.Log($"[Luật] Đã có lợn cùng hàng {targetNode.row} hoặc cùng cột {targetNode.col}!"); 
+                    Debug.Log($"[Luật] Đã có lợn cùng hàng {targetNode.row} hoặc cùng cột {targetNode.col}!");
                     return false; 
                 }
 
@@ -127,7 +147,7 @@ namespace _Script
                 int colDiff = Mathf.Abs(node.col - targetNode.col); 
                 if (rowDiff <= 1 && colDiff <= 1) 
                 {
-                    Debug.Log($"[Luật] Không thể đặt sát cạnh lợn ở ({node.row}, {node.col}) trong phạm vi 1 ô!"); 
+                    Debug.Log($"[Luật] Không thể đặt sát cạnh lợn ở ({node.row}, {node.col}) trong phạm vi 1 ô!");
                     return false; 
                 }
             }
@@ -277,8 +297,10 @@ namespace _Script
                 if (GetPlacedCountByColor(kvp.Key) < kvp.Value) return; 
             }
 
-            Debug.Log(">>> CHIẾN THẮNG LEVEL! <<<"); 
-            HandleLevelUp(); 
+            Debug.Log(">>> CHIẾN THẮNG LEVEL! <<<");
+            int finalScore = CalculateFinalScore();
+            var data = new WinPopupArgs(currentLevel, finalScore, currentHealth);
+            UIManager.Instance.OpenView<WinPopupView>(UIID.WinPopup, data);
         }
         
         #endregion
@@ -621,9 +643,38 @@ namespace _Script
             InitLevel();
         }
 
+        public void HandleIncorrectClick()
+        {
+            currentHealth--;
+            Debug.Log($"Current Health: {currentHealth}");
+        }
+
         public void Replay()
         {
             InitLevel();
+        }
+        
+        public int CalculateFinalScore()
+        {
+            int baseScore = 1000 + (currentLevel * 100);
+
+            int healthBonus = currentHealth * 300;
+
+            float elapsedTime = Time.time - levelStartTime;
+            int remainingSeconds = Mathf.Max(0, Mathf.FloorToInt(TargetSolveTime - elapsedTime));
+            int timeBonus = remainingSeconds * 10;
+
+            int toolPenalty = toolUsedCount * 150;
+
+            int finalScore = Mathf.Max(baseScore / 2, baseScore + healthBonus + timeBonus - toolPenalty);
+
+            Debug.Log($"[Score Breakdown] Base: {baseScore} | Health: +{healthBonus} | Time: +{timeBonus} | Penalty: -{toolPenalty} => Total: {finalScore}");
+            return finalScore;
+        }
+        
+        public void RegisterToolUsed()
+        {
+            toolUsedCount++;
         }
 
         private int GetPlacedCountByColor(int colorRegionID)
@@ -646,6 +697,11 @@ namespace _Script
 
             Debug.LogWarning($"[LevelManager] Không tìm thấy màu cho ID: {regionId}");
             return Color.white;
+        }
+
+        private int GetCurrentLevel()
+        {
+            return currentLevel;
         }
     }
 }

@@ -92,7 +92,7 @@ namespace _Script
             }
         }
 
-        #region GENERAL POOL API (DÙNG CHO MỌI PREFAB)
+        #region GENERAL POOL API
 
         /// <summary>
         /// Lấy đối tượng từ pool dựa trên bất kỳ Prefab nào

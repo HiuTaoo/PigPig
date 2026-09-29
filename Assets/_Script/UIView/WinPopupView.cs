@@ -9,13 +9,13 @@ namespace _Script.UI
     {
         public int Level;
         public int Score;
-        public int Reward;
+        public int Health;
 
-        public WinPopupArgs(int level, int score, int reward)
+        public WinPopupArgs(int level, int score, int health)
         {
             Level = level;
             Score = score;
-            Reward = reward;
+            Health = health;
         }
     }
 
@@ -24,6 +24,7 @@ namespace _Script.UI
         [Header("Dynamic Texts")]
         [SerializeField] private TextMeshProUGUI levelText;
         [SerializeField] private TextMeshProUGUI scoreText;
+        [SerializeField] private GameObject starParent;
 
         [Header("Buttons")]
         [SerializeField] private Button okButton;
@@ -38,10 +39,15 @@ namespace _Script.UI
         {
             base.OnOpen(args);
 
-            if (args is WinPopupArgs data)
+            if (args is not WinPopupArgs data) return;
+            if (levelText != null) levelText.text = $"LEVEL {data.Level}";
+            if (scoreText != null) scoreText.text = data.Score.ToString("N0");
+            Debug.Log($"Health: {data.Health}");
+            for (var i = 0; i < data.Health; i++)
             {
-                if (levelText != null) levelText.text = $"LEVEL {data.Level}";
-                if (scoreText != null) scoreText.text = data.Score.ToString("N0");
+                var star = ObjectPooler.Instance.Get(PrefabConfig.Instance.starUIPrefab, 
+                    starParent.transform.position, Quaternion.identity, starParent.transform);
+                star.SetActive(true);
             }
         }
 

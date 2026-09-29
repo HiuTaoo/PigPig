@@ -6,13 +6,11 @@ namespace _Script.UI
 {
     public struct LosePopupArg
     {
-        public int level;
-        public int score;
+        public int Level;
 
-        public LosePopupArg(int level, int score)
+        public LosePopupArg(int level)
         {
-            this.level = level;
-            this.score = score;
+            this.Level = level;
         }
     }
     
@@ -24,21 +22,22 @@ namespace _Script.UI
 
         [Header("Buttons")]
         [SerializeField] private Button replayButton;
+        [SerializeField] private Button mainMenuButton;
         
         public override void OnInit()
         {
             base.OnInit();
             replayButton.onClick.AddListener(OnReplayButtonClicked);
+            mainMenuButton.onClick.AddListener(OnMainMenuButtonClicked);
         }
 
         public override void OnOpen(object args = null)
         {
             base.OnOpen(args);
 
-            if (args is WinPopupArgs data)
+            if (args is LosePopupArg data)
             {
                 if (levelText != null) levelText.text = $"LEVEL {data.Level}";
-                if (scoreText != null) scoreText.text = data.Score.ToString("N0");
             }
         }
 
@@ -48,9 +47,15 @@ namespace _Script.UI
             LevelManager.Instance.Replay();
         }
 
+        private void OnMainMenuButtonClicked()
+        {
+            GameManager.Instance.BackToMainMenu();
+        }
+
         private void OnDestroy()
         {
             replayButton.onClick.RemoveListener(OnReplayButtonClicked);
+            mainMenuButton.onClick.RemoveListener(OnMainMenuButtonClicked);
         }
     }
 }

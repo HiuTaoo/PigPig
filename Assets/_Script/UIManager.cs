@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using _Script.Events;
 using UnityEngine;
 
 namespace _Script.UI
@@ -87,6 +89,22 @@ namespace _Script.UI
                     break;
                 }
             }
+        }
+
+        private void OnGameOver(GameOverEvent gameOverEvent)
+        {
+            var data = new LosePopupArg(gameOverEvent.Level);
+            OpenView<LosePopupView>(UIID.LosePopup, data);
+        }
+
+        private void OnEnable()
+        {
+            EventManager.Subscribe<GameOverEvent>(OnGameOver);
+        }
+
+        public void OnDisable()
+        {
+            EventManager.Unsubscribe<GameOverEvent>(OnGameOver);
         }
     }
 }

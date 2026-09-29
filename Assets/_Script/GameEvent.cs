@@ -43,6 +43,14 @@
             ClickedNode = node;
         }
     }
+    
+    public struct GameOverEvent
+    {
+        public int Level;
+        public GameOverEvent(int level){
+            Level = level;
+        }
+    }
 
     public struct CheckRulesEvent { }
 

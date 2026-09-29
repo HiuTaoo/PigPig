@@ -66,6 +66,7 @@ namespace _Script
                 gridManager.SpawnMarker(e.ClickedNode, true);
                 targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Không thể đặt lợn vào ô này do vi phạm luật!");
+                levelManager.HandleIncorrectClick();
                 EventManager.Raise(new CellInCorrectClickEvent(targetNode));
                 return;
             }
@@ -75,6 +76,7 @@ namespace _Script
                 gridManager.SpawnMarker(e.ClickedNode, true);
                 targetNode.SetStatus(NodeStatus.Incorrect);
                 Debug.LogWarning("Nước đi này dẫn vào ngõ cụt (không thể giải thắng bàn cờ)! Hãy chọn ô khác.");
+                levelManager.HandleIncorrectClick();
                 EventManager.Raise(new CellInCorrectClickEvent(targetNode));
                 return;
             }
