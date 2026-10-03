@@ -1,4 +1,6 @@
-﻿using TMPro;
+﻿using System;
+using _Script.Audio;
+using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -19,6 +21,11 @@ namespace _Script
             {
                 leveltext.text = $"Level {savedLevel}";
             }
+        }
+
+        private void Start()
+        {
+            AudioManager.Instance.PlayBGM(MusicId.MainMenuBGM);
         }
 
         private void Update()

@@ -1,9 +1,5 @@
 ﻿namespace _Script
 {
-    public struct GridLoadedEvent
-    {
-    }
-
     public struct CellClickedEvent
     {
         public Node ClickedNode;
@@ -51,8 +47,6 @@
             Level = level;
         }
     }
-
-    public struct CheckRulesEvent { }
 
     public struct LevelCompletedEvent
     {

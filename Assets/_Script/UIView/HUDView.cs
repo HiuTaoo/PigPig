@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using _Script.Audio;
 using _Script.Events;
 using TMPro;
 using UnityEngine;
@@ -32,7 +33,6 @@ namespace _Script.UI
         public Button toolButton2;
         public Button toolButton3;
 
-        // Lưu trữ các Icon Image theo mã Hex của màu gốc
         private readonly Dictionary<string, Image> colorIconMap = new Dictionary<string, Image>();
         private Queue<GameObject> healthIcons = new Queue<GameObject>();
 
@@ -54,10 +54,8 @@ namespace _Script.UI
             {
                 if (levelText != null) levelText.text = $"{data.Level}";
 
-                // 1. Trả toàn bộ icon cũ về Pool và dọn dẹp map
                 ClearActiveIcons();
 
-                // 2. Tạo icon mới và lưu vào Dictionary
                 if (data.Colors != null)
                 {
                     foreach (var color in data.Colors)
@@ -69,7 +67,6 @@ namespace _Script.UI
                         var colorImage = colorIcon.GetComponent<Image>();
                         colorImage.color = color;
 
-                        // Chuyển mã màu sang Hex string làm Key an toàn
                         string hexKey = ColorUtility.ToHtmlStringRGB(color);
                         colorIconMap[hexKey] = colorImage;
                     }

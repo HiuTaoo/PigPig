@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using _Script;
+using _Script.Audio;
 using _Script.Events;
 using UnityEngine;
 
@@ -37,18 +38,18 @@ public class Node : MonoBehaviour
         {
             if (Time.timeScale == 0)
                 return;
-            
             if (singleClickCoroutine != null)
             {
                 StopCoroutine(singleClickCoroutine);
                 singleClickCoroutine = null;
-
                 EventManager.Raise(new CellDoubleClickedEvent(this));
+                
             }
             else
             {
                 singleClickCoroutine = StartCoroutine(WaitSingleClickRoutine());
             }
+            AudioManager.Instance.PlaySFX(SFXId.ButtonClick);
         }
 
         private IEnumerator WaitSingleClickRoutine()

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using _Script.Audio;
 using UnityEngine;
 using _Script.Data;
 using _Script.Events;
@@ -84,6 +85,8 @@ namespace _Script
             }
             var data = new HUDViewData(currentLevel, colors);
             UIManager.Instance.OpenView<HUDView>(UIID.GameplayHUD, data);
+            AudioManager.Instance.PlayBGM(MusicId.GameplayBGM);
+            AudioManager.Instance.StopSFX();
         }
 
         /// <summary>
@@ -301,6 +304,7 @@ namespace _Script
             int finalScore = CalculateFinalScore();
             var data = new WinPopupArgs(currentLevel, finalScore, currentHealth);
             UIManager.Instance.OpenView<WinPopupView>(UIID.WinPopup, data);
+            EventManager.Raise(new LevelCompletedEvent(currentLevel));
         }
         
         #endregion
