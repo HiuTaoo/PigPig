@@ -1718,7 +1718,7 @@ MonoBehaviour:
   gridBase: {fileID: 223352575}
   gridGround: {fileID: 871875928}
   globalColorPalette: {fileID: 11400000, guid: 0afcd846f1833434bb66f3870ab4512f, type: 2}
-  tileFillRatio: 0.98
+  tileFillRatio: 0.95
   tileThickness: 0.1
   pigScaleRatio: 0.7
   markerScaleRatio: 0.8
