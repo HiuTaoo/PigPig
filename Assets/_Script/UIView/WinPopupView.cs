@@ -50,6 +50,23 @@ namespace _Script.UI
                 star.SetActive(true);
             }
         }
+        
+        public override void OnClose()
+        {
+            ClearSpawnedStars();
+            base.OnClose();
+        }
+
+        private void ClearSpawnedStars()
+        {
+            if (starParent == null) return;
+
+            for (int i = starParent.transform.childCount - 1; i >= 0; i--)
+            {
+                GameObject starChild = starParent.transform.GetChild(i).gameObject;
+                ObjectPooler.Instance.Return(starChild);
+            }
+        }
 
         private void OnOkButtonClicked()
         {
